@@ -1,7 +1,9 @@
 import lab as B
-from stheno import GP, EQ, Delta, WeightedUnique
-from varz import sequential
+from stheno import GP, EQ, Delta, WeightedUnique, Obs
+from varz import Vars, sequential
 import wbml.out
+import numpy as np
+import warnings
 
 __all__ = ['IGP', 'OLMM']
 
@@ -21,11 +23,24 @@ def _construct_gps(vs, igp, p):
     return fs, es
 
 
+def _per_output(x, y, w):
+    p = B.shape(y)[1]
+
+    for i in range(p):
+        yi = y[:, i]
+        wi = w[:, i]
+
+        # Only return available observations.
+        available = ~B.isnan(yi)
+
+        yield x[available], yi[available], wi[available]
+
+
 class IGP:
     """Independent GPs.
 
     Args:
-        vs (:class:`varz.Vars`): Variable container.
+        vs (:class:`varz.Vars`, optional): Variable container.
         kernel_constructor (function, optional): Function that takes in a
             variable container and gives back a kernel. Defaults to an
             exponentiated quadratic kernel.
@@ -33,12 +48,20 @@ class IGP:
     """
 
     def __init__(self,
-                 vs,
+                 vs=None,
                  kernel_constructor=_eq_constructor,
                  noise=1e-2):
+        if vs is None:
+            vs = Vars(np.float64)
+
         self.vs = vs
         self.kernel_constructor = kernel_constructor
         self.noise = noise
+
+        self.p = None
+        self.x_train = None
+        self.y_train = None
+        self.w_train = None
 
     def noises(self, p):
         noises = [self.vs.pos(self.noise, name=f'gp{i}/noise')
@@ -46,33 +69,49 @@ class IGP:
         return B.concat(*[noise[None] for noise in noises])
 
     def logpdf(self, x, y, w):
-        p = B.shape(y)[1]
-
-        # Construct independent GPs.
-        fs, es = _construct_gps(self.vs, self, p)
-
-        # Compute logpdf.
         logpdf = 0
-        for i in range(p):
-            yi = y[:, i]
-            wi = w[:, i]
-
-            # Filter missing observations.
-            available = ~B.isnan(yi)
-            xi = x[available]
-            yi = yi[available]
-            wi = wi[available]
-
-            f_noisy = fs[i] + es[i]
+        for (f, e), (xi, yi, wi) in zip(zip(*_construct_gps(self.vs,
+                                                            self,
+                                                            B.shape(y)[1])),
+                                        _per_output(x, y, w)):
+            f_noisy = f + e
             logpdf = logpdf + f_noisy(WeightedUnique(xi, wi)).logpdf(yi)
-
         return logpdf
 
     def condition(self, x, y, w):
-        pass
+        self.p = B.shape(y)[1]
 
-    def predict(self, x):
-        pass
+        self.x_train = x
+        self.y_train = y
+        self.w_train = w
+
+    def predict(self, x, latent=False):
+        means = []
+        vars = []
+        for (f, e), (xi, yi, wi) in zip(zip(*_construct_gps(self.vs,
+                                                            self,
+                                                            self.p)),
+                                        _per_output(self.x_train,
+                                                    self.y_train,
+                                                    self.w_train)):
+            obs = Obs((f + e)(WeightedUnique(xi, wi)), yi)
+            if latent:
+                post = f | obs
+            else:
+                post = (f + e) | obs
+            means.append(B.squeeze(B.dense(post.mean(x))))
+            vars.append(B.squeeze(B.dense(post.kernel.elwise(x))))
+        return B.stack(*means, axis=1), B.stack(*vars, axis=1)
+
+    def sample(self, x, p, latent=False):
+        samples = []
+        for f, e in zip(*_construct_gps(self.vs, self, p)):
+            if latent:
+                process = f
+            else:
+                process = f + e
+            samples.append(B.squeeze(process(x).sample()))
+        return B.stack(*samples, axis=1)
 
 
 def _pd_inv(a):
@@ -89,25 +128,33 @@ class OLMM:
         self.model = model
         self.u = u
         self.s_sqrt = s_sqrt
+        self.h = u * s_sqrt[None, :]
         self.noise = noise
 
         self.p, self.m = B.shape(u)
 
     def logpdf(self, x, y):
-        n = B.shape(x)[0]
+        proj_x, proj_y, proj_w, reg = self._project(x, y)
+        return self.model.logpdf(proj_x, proj_y, proj_w) - reg
 
-        available = ~B.isnan(y)
+    def _project(self, x, y):
+        n = B.shape(x)[0]
+        available = ~B.isnan(B.to_numpy(y))
 
         # Extract patterns.
         patterns = list(set(map(tuple, list(available))))
-        wbml.out.kv('Number of patterns', len(patterns))
+
+        if len(patterns) > 30:
+            warnings.warn(f'Detected {len(patterns)} patterns, which is more '
+                          f'than 30.',
+                          category=UserWarning)
 
         # Per pattern, find data points that belong to it.
         patterns_inds = [[] for _ in range(len(patterns))]
         for i in range(n):
             patterns_inds[patterns.index(tuple(available[i]))].append(i)
 
-        # Per pattern, perform the projection and compute the final logpdf.
+        # Per pattern, perform the projection.
         proj_xs = []
         proj_ys = []
         proj_ws = []
@@ -115,20 +162,21 @@ class OLMM:
 
         for pattern, pattern_inds in zip(patterns, patterns_inds):
             proj_x, proj_y, proj_w, reg = \
-                self._project(B.take(x, pattern_inds),
-                              B.take(y, pattern_inds),
-                              pattern)
+                self._project_pattern(B.take(x, pattern_inds),
+                                      B.take(y, pattern_inds),
+                                      pattern)
 
             proj_xs.append(proj_x)
             proj_ys.append(proj_y)
             proj_ws.append(proj_w)
             total_reg = total_reg + reg
 
-        return self.model.logpdf(B.concat(*proj_xs, axis=0),
-                                 B.concat(*proj_ys, axis=0),
-                                 B.concat(*proj_ws, axis=0)) - total_reg
+        return B.concat(*proj_xs, axis=0), \
+               B.concat(*proj_ys, axis=0), \
+               B.concat(*proj_ws, axis=0), \
+               total_reg
 
-    def _project(self, x, y, pattern):
+    def _project_pattern(self, x, y, pattern):
         # Filter by the given pattern.
         y = B.take(y, pattern, axis=1)
 
@@ -162,3 +210,28 @@ class OLMM:
                      n * 2 * B.sum(B.log(self.s_sqrt)))
 
         return x, proj_y, proj_w, reg
+
+    def condition(self, x, y):
+        self.p = B.shape(y)[1]
+        proj_x, proj_y, proj_w, _ = self._project(x, y)
+        self.model.condition(proj_x, proj_y, proj_w)
+
+    def predict(self, x, latent=False):
+        means, vars = self.model.predict(x, latent=latent)
+
+        # Pull means and variances through mixing matrix.
+        means = B.matmul(means, self.h, tr_b=True)
+        vars = B.matmul(vars, self.h ** 2, tr_b=True)
+
+        if not latent:
+            vars = vars + self.noise
+
+        return means, vars
+
+    def sample(self, x, latent=False):
+        latent_sample = self.model.sample(x, p=self.m, latent=latent)
+        observed_sample = B.matmul(latent_sample, self.h, tr_b=True)
+        if not latent:
+            observed_sample = observed_sample + \
+                              B.sqrt(self.noise) * B.randn(observed_sample)
+        return observed_sample
