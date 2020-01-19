@@ -6,19 +6,21 @@
 
 Implementation of the Orthogonal Linear Mixing Model
 
-*Note:* OLMM requires Python 3.6 or higher.
-
 ## Installation
 
+Python 3.6 or higher is required.
+To begin with, clone and enter the repo.
+
 ```bash
-pip install package
+git clone https://github.com/wesselb/golmm
+cd golmm
 ```
 
-## Basic Usage
+Then make a virtual environment and install the requirements.
 
-Like so:
-
-```python
->>> print('Hello, world!')
-Hello, world!
+```bash
+virtualenv -p python3 venv
+source venv/bin/activate
+pip install -r requirements_dev.txt
 ```
+
