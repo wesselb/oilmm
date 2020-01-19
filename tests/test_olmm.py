@@ -1,16 +1,15 @@
-import numpy as np
 import lab as B
+import numpy as np
 import wbml.lmm
 from stheno import EQ
 from varz import Vars
-from olmm import OLMM, IGP
 
+from olmm import OLMM, IGP
 from .util import approx
 
 
 def test_logpdf():
     m = 3
-    p = 2 * m
     n = 20
     noise = 1e-2
     latent_noise = 2e-2
