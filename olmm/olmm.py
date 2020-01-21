@@ -13,12 +13,13 @@ def _eq_constructor(vs):
 
 
 def _construct_gps(vs, igp, p):
-    g = Graph()
     fs = []
     es = []
 
-    for i, noise in enumerate(igp.noises(p)):
+    for i, noise in enumerate(igp.construct_noises(p)):
         kernel = sequential(f'gp{i}/')(igp.kernel_constructor)(vs)
+
+        g = Graph()
         fs.append(GP(kernel, graph=g))
         es.append(GP(noise * Delta(), graph=g))
 
@@ -65,37 +66,73 @@ class IGP:
         self.y_train = None
         self.w_train = None
 
-    def noises(self, p):
+    def construct_noises(self, p):
+        """Construct the observation noises.
+
+        Args:
+            p (int): Number of outputs.
+
+        Returns:
+            vector: Observation noises.
+        """
         noises = [self.vs.pos(self.noise, name=f'gp{i}/noise')
                   for i in range(p)]
         return B.concat(*[noise[None] for noise in noises])
 
     def logpdf(self, x, y, w):
+        """Compute the logpdf.
+
+        Args:
+            x (matrix): Locations of training data.
+            y (matrix): Observations of training data.
+            w (matrix): Weights of training data.
+
+        Returns:
+            scalar: Logpdf.
+        """
         logpdf = 0
-        for (f, e), (xi, yi, wi) in zip(zip(*_construct_gps(self.vs,
-                                                            self,
-                                                            B.shape(y)[1])),
-                                        _per_output(x, y, w)):
+        for (f, e), (xi, yi, wi) in \
+                zip(zip(*_construct_gps(self.vs, self, B.shape(y)[1])),
+                    _per_output(x, y, w)):
             f_noisy = f + e
             logpdf = logpdf + f_noisy(WeightedUnique(xi, wi)).logpdf(yi)
         return logpdf
 
     def condition(self, x, y, w):
+        """Condition the model.
+
+        Args:
+            x (matrix): Locations of training data.
+            y (matrix): Observations of training data.
+            w (matrix): Weights of training data.
+        """
         self.p = B.shape(y)[1]
 
         self.x_train = x
         self.y_train = y
         self.w_train = w
 
-    def predict(self, x, latent=False):
+    def predict(self, x, latent=False, variances=False):
+        """Predict.
+
+        Args:
+            x (matrix): Input locations to predict at.
+            latent (bool, optional): Predict noiseless processes. Defaults
+                to `False`.
+            variances (bool, optional): Return means and variances instead.
+                Defaults to `False`.
+
+        Returns:
+            tuple: Tuple containing means, lower 95% central credible bound,
+                and upper 95% central credible bound if `variances` is `False`,
+                and means and variances otherwise.
+        """
         means = []
         vars = []
-        for (f, e), (xi, yi, wi) in zip(zip(*_construct_gps(self.vs,
-                                                            self,
-                                                            self.p)),
-                                        _per_output(self.x_train,
-                                                    self.y_train,
-                                                    self.w_train)):
+
+        for (f, e), (xi, yi, wi) in \
+                zip(zip(*_construct_gps(self.vs, self, self.p)),
+                    _per_output(self.x_train, self.y_train, self.w_train)):
             obs = Obs((f + e)(WeightedUnique(xi, wi)), yi)
             if latent:
                 post = f | obs
@@ -103,9 +140,21 @@ class IGP:
                 post = (f + e) | obs
             means.append(B.squeeze(B.dense(post.mean(x))))
             vars.append(B.squeeze(B.dense(post.kernel.elwise(x))))
-        return B.stack(*means, axis=1), B.stack(*vars, axis=1)
+
+        means = B.stack(*means, axis=1)
+        vars = B.stack(*vars, axis=1)
+
+        if variances:
+            return means, vars
+        else:
+            return means, means - 2 * B.sqrt(vars), means + 2 * B.sqrt(vars)
 
     def sample(self, x, p, latent=False):
+        """Sample from the model.
+
+        Args:
+            
+        """
         samples = []
         for f, e in zip(*_construct_gps(self.vs, self, p)):
             if latent:
@@ -200,7 +249,7 @@ class OLMM:
                      B.diag(_pd_inv(B.matmul(u, u, tr_a=True)))
 
         # Convert projected noise to weights.
-        noises = self.model.noises(self.m)
+        noises = self.model.construct_noises(self.m)
         weights = noises / (noises + proj_noise)
         proj_w = B.ones(self.vs.dtype, n, self.m) * weights[None, :]
 
