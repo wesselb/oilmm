@@ -1,9 +1,9 @@
-import lab as B
-from stheno import GP, EQ, Delta, WeightedUnique, Obs
-from varz import Vars, sequential
-import wbml.out
-import numpy as np
 import warnings
+
+import lab as B
+import numpy as np
+from stheno import Graph, GP, EQ, Delta, WeightedUnique, Obs
+from varz import Vars, sequential
 
 __all__ = ['IGP', 'OLMM']
 
@@ -13,12 +13,14 @@ def _eq_constructor(vs):
 
 
 def _construct_gps(vs, igp, p):
+    g = Graph()
     fs = []
     es = []
 
     for i, noise in enumerate(igp.noises(p)):
-        fs.append(GP(sequential(f'gp{i}/')(igp.kernel_constructor)(vs)))
-        es.append(GP(noise * Delta()))
+        kernel = sequential(f'gp{i}/')(igp.kernel_constructor)(vs)
+        fs.append(GP(kernel, graph=g))
+        es.append(GP(noise * Delta(), graph=g))
 
     return fs, es
 
