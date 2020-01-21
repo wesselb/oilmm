@@ -145,4 +145,3 @@ for i, (name, inds, p) in enumerate(regions):
 plt.tight_layout()
 plt.savefig('experiments/exchange.pdf')
 plt.show()
-
