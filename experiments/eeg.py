@@ -5,16 +5,16 @@ import pandas as pd
 import torch
 import wbml.out
 import wbml.plot
-from stheno import Matern12
+from stheno import EQ
 from varz import Vars
 from varz.torch import minimise_l_bfgs_b
-from wbml.data.exchange import load
+from wbml.data.eeg import load
 from wbml.experiment import WorkingDirectory
 
 from olmm import IGP, OLMM
 
 wbml.out.report_time = True
-wd = WorkingDirectory('_experiments', 'exchange')
+wd = WorkingDirectory('_experiments', 'eeg')
 
 _, train, test = load()
 
@@ -34,7 +34,7 @@ vs = Vars(torch.float64)
 def construct_model(vs):
     # Construct model for the latent processes.
     igp = IGP(vs,
-              lambda vs_: vs_.pos(1) * Matern12().stretch(vs_.pos(0.1)),
+              lambda vs_: vs_.pos(1) * EQ().stretch(vs_.pos(0.02)),
               vs.pos(1e-2, name='igp/noise'))
 
     # Construct OLMM.
@@ -51,7 +51,7 @@ def objective(vs):
                                        torch.tensor(y_norm))
 
 
-minimise_l_bfgs_b(objective, vs, trace=True)
+minimise_l_bfgs_b(objective, vs, trace=True, iters=1000)
 
 # Predict.
 model = construct_model(vs)
@@ -63,34 +63,34 @@ means = means * y_scale + y_mean
 lowers = lowers * y_scale + y_mean
 uppers = uppers * y_scale + y_mean
 
-# For the purpose of comparison, standardise using the mean of the *training*
-# data. This is not how the SMSE usually is defined!
+# Compute SMSE.
 pred = pd.DataFrame(means, index=train.index, columns=train.columns)
-smses = ((pred - test) ** 2).mean(axis=0) / \
-        ((train.mean(axis=0) - test) ** 2).mean(axis=0)
+smse = ((pred - test) ** 2).mean().mean() / \
+       ((test.mean(axis=0) - test) ** 2).mean().mean()
 
 # Report and save average SMSE.
-wbml.out.kv('Average SMSE', smses.mean())
-with open(wd.file('average_smse.txt'), 'w') as f:
-    f.write(str(smses.mean()))
+wbml.out.kv('SMSE', smse)
+with open(wd.file('smse.txt'), 'w') as f:
+    f.write(str(smse))
+
+# Name of output to plot.
+name = 'F2'
 
 # Plot the result.
-plt.figure(figsize=(12, 3))
+plt.figure(figsize=(12, 2))
 wbml.plot.tex()
 
-for i, name in enumerate(test.columns):
-    p = list(train.columns).index(name)  # Index of output.
-    plt.subplot(1, 3, i + 1)
-    plt.title(name)
-    plt.plot(x, means[:, p], c='tab:blue')
-    plt.fill_between(x, lowers[:, p], uppers[:, p],
-                     facecolor='tab:blue', alpha=.25)
-    plt.scatter(x, y[:, p], c='tab:green', marker='x', s=10)
-    plt.scatter(test[name].index, test[name], c='tab:orange', marker='x', s=10)
-    plt.xlabel('Time (year)')
-    plt.ylabel('Exchange rate')
-    wbml.plot.tweak(legend=False)
+p = list(train.columns).index(name)
+plt.plot(x, means[:, p], c='tab:blue')
+plt.fill_between(x, lowers[:, p], uppers[:, p],
+                 facecolor='tab:blue', alpha=.25)
+plt.scatter(x, y[:, p], c='tab:green', marker='x', s=10)
+plt.scatter(test[name].index, test[name], c='tab:orange', marker='x', s=10)
+plt.xlabel('Time (second)')
+plt.xlim(0.4, 1)
+plt.ylabel(f'Voltage ({name})')
+wbml.plot.tweak(legend=False)
 
 plt.tight_layout()
-plt.savefig(wd.file('exchange.pdf'))
+plt.savefig(wd.file('eeg.pdf'))
 plt.show()
