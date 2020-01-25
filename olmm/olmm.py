@@ -147,13 +147,20 @@ class IGP:
         if variances:
             return means, vars
         else:
-            return means, means - 2 * B.sqrt(vars), means + 2 * B.sqrt(vars)
+            error = 2 * B.sqrt(vars)
+            return means, means - error, means + error
 
     def sample(self, x, p, latent=False):
         """Sample from the model.
 
         Args:
-            
+            x (matrix): Locations to sample at.
+            p (int): Number of outputs to sample.
+            latent (bool, optional): Sample noiseless processes. Defaults
+                to `False`.
+
+        Returns:
+            matrix: Sample.
         """
         samples = []
         for f, e in zip(*_construct_gps(self.vs, self, p)):
@@ -174,6 +181,16 @@ def _pinv(a):
 
 
 class OLMM:
+    """Orthogonal linear mixing model.
+
+    Args:
+        vs (:class:`varz.Vars`, optional): Variable container.
+        model (:class:`.olmm.IGP`): Model for the latent processes.
+        u (matrix): Orthogonal part of the mixing matrix.
+        s_sqrt (vector): Diagonal part of the mixing matrix.
+        noise (scalar, optional): Observation noise. Defaults to `1e-2`.
+    """
+
     def __init__(self, vs, model, u, s_sqrt, noise=1e-2):
         self.vs = vs
         self.model = model
@@ -185,6 +202,15 @@ class OLMM:
         self.p, self.m = B.shape(u)
 
     def logpdf(self, x, y):
+        """Compute the logpdf.
+
+        Args:
+            x (matrix): Locations of training data.
+            y (matrix): Observations of training data.
+
+        Returns:
+            scalar: Logpdf.
+        """
         proj_x, proj_y, proj_w, reg = self._project(x, y)
         return self.model.logpdf(proj_x, proj_y, proj_w) - reg
 
@@ -263,12 +289,32 @@ class OLMM:
         return x, proj_y, proj_w, reg
 
     def condition(self, x, y):
+        """Condition the model.
+
+        Args:
+            x (matrix): Locations of training data.
+            y (matrix): Observations of training data.
+        """
         self.p = B.shape(y)[1]
         proj_x, proj_y, proj_w, _ = self._project(x, y)
         self.model.condition(proj_x, proj_y, proj_w)
 
-    def predict(self, x, latent=False):
-        means, vars = self.model.predict(x, latent=latent)
+    def predict(self, x, latent=False, variances=False):
+        """Predict.
+
+        Args:
+            x (matrix): Input locations to predict at.
+            latent (bool, optional): Predict noiseless processes. Defaults
+                to `False`.
+            variances (bool, optional): Return means and variances instead.
+                Defaults to `False`.
+
+        Returns:
+            tuple: Tuple containing means, lower 95% central credible bound,
+                and upper 95% central credible bound if `variances` is `False`,
+                and means and variances otherwise.
+        """
+        means, vars = self.model.predict(x, latent=latent, variances=True)
 
         # Pull means and variances through mixing matrix.
         means = B.matmul(means, self.h, tr_b=True)
@@ -277,9 +323,23 @@ class OLMM:
         if not latent:
             vars = vars + self.noise
 
-        return means, vars
+        if variances:
+            return means, vars
+        else:
+            error = 2 * B.sqrt(vars)
+            return means, means - error, means + error
 
     def sample(self, x, latent=False):
+        """Sample from the model.
+
+        Args:
+            x (matrix): Locations to sample at.
+            latent (bool, optional): Sample noiseless processes. Defaults
+                to `False`.
+
+        Returns:
+            matrix: Sample.
+        """
         latent_sample = self.model.sample(x, p=self.m, latent=latent)
         observed_sample = B.matmul(latent_sample, self.h, tr_b=True)
         if not latent:
