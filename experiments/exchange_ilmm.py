@@ -4,16 +4,15 @@ import numpy as np
 import pandas as pd
 import torch
 import wbml.plot
-from stheno import Matern12, Delta
+from stheno import Matern12
 from varz import Vars
 from varz.torch import minimise_l_bfgs_b
 from wbml.data.exchange import load
 from wbml.experiment import WorkingDirectory
-
-from oilmm import IGP, OILMM
+from wbml.lmm import LMMPP
 
 wbml.out.report_time = True
-wd = WorkingDirectory('_experiments', 'exchange')
+wd = WorkingDirectory('_experiments', 'exchange_ilmm')
 
 _, train, test = load()
 
@@ -32,18 +31,15 @@ vs = Vars(torch.float64)
 
 def construct_model(vs):
     # Construct model for the latent processes.
-    igp = IGP(vs,
-              lambda vs_: (vs_.pos(1) * Matern12().stretch(vs_.pos(0.1)) +
-                           vs_.pos(1e-2) * Delta()),
-              vs.pos(1e-2, name='igp/noise'))
+    kernels = [vs.pos(1, name=f'{i}/var') *
+               Matern12().stretch(vs.pos(0.1, name=f'{i}/scale'))
+               for i in range(m)]
+    noise = vs.pos(1e-2, name='noise')
+    latent_noise = vs.pos(1e-2 * B.ones(3), name='latent_noise')
+    H = vs.get(shape=(p, m), name='h')
 
-    # Construct OILMM.
-    oilmm = OILMM(vs,
-                  igp,
-                  vs.orth(shape=(p, p), name='u_full')[:, :m],
-                  vs.pos(shape=(m,), name='s_sqrt'),
-                  vs.pos(1e-2, name='oilmm/noise'))
-    return oilmm
+    # Construct LMM.
+    return LMMPP(kernels, noise, latent_noise, H)
 
 
 def objective(vs):
@@ -55,8 +51,9 @@ minimise_l_bfgs_b(objective, vs, trace=True, iters=1000)
 
 # Predict.
 model = construct_model(vs)
-model.condition(torch.tensor(x), torch.tensor(y_norm))
-means, lowers, uppers = B.to_numpy(model.predict(x))
+model = model.condition(torch.tensor(x), torch.tensor(y_norm))
+preds, _, _ = model.marginals(torch.tensor(x))
+means, lowers, uppers = B.to_numpy([B.stack(*xs, axis=1) for xs in zip(*preds)])
 
 # Undo normalisation
 means = means * y_scale + y_mean
@@ -75,19 +72,20 @@ with open(wd.file('average_smse.txt'), 'w') as f:
     f.write(str(smses.mean()))
 
 # Plot the result.
-plt.figure(figsize=(12, 2))
+plt.figure(figsize=(12, 3))
 wbml.plot.tex()
 
 for i, name in enumerate(test.columns):
     p = list(train.columns).index(name)  # Index of output.
     plt.subplot(1, 3, i + 1)
+    plt.title(name)
     plt.plot(x, means[:, p], c='tab:blue')
     plt.fill_between(x, lowers[:, p], uppers[:, p],
                      facecolor='tab:blue', alpha=.25)
-    plt.scatter(x, y[:, p], c='black', marker='o', s=8)
-    plt.scatter(test[name].index, test[name], c='tab:orange', marker='x', s=8)
+    plt.scatter(x, y[:, p], c='tab:green', marker='x', s=10)
+    plt.scatter(test[name].index, test[name], c='tab:orange', marker='x', s=10)
     plt.xlabel('Time (year)')
-    plt.ylabel(name)
+    plt.ylabel('Exchange rate')
     wbml.plot.tweak(legend=False)
 
 plt.tight_layout()

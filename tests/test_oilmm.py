@@ -4,7 +4,7 @@ import wbml.lmm
 from stheno import EQ
 from varz import Vars
 
-from olmm import OLMM, IGP
+from oilmm import OILMM, IGP
 from .util import approx
 
 
@@ -26,26 +26,26 @@ def test_logpdf():
     s_sqrt = B.rand(m)
 
     # Construct a reference model.
-    olmm_pp = wbml.lmm.LMMPP([kernel] * 3,
-                             1e-2,
-                             latent_noise * B.ones(m),
-                             u * s_sqrt[None, :])
+    oilmm_pp = wbml.lmm.LMMPP([kernel] * 3,
+                              1e-2,
+                              latent_noise * B.ones(m),
+                              u * s_sqrt[None, :])
 
     # Sample to generate test data.
-    y = olmm_pp.sample(x, latent=False)
+    y = oilmm_pp.sample(x, latent=False)
 
     # Throw away data, but retain orthogonality.
     y[5:10, :][:, 3:] = np.nan
     y[10:, :][:, :3] = np.nan
 
-    # Construct OLMM to test.
+    # Construct OILMM to test.
     vs = Vars(np.float64)
-    olmm = OLMM(vs,
-                model=IGP(vs=vs,
-                          kernel_constructor=lambda vs_: kernel,
-                          noise=latent_noise),
-                u=u,
-                s_sqrt=s_sqrt,
-                noise=noise)
+    oilmm = OILMM(vs,
+                  model=IGP(vs=vs,
+                            kernel_constructor=lambda vs_: kernel,
+                            noise=latent_noise),
+                  u=u,
+                  s_sqrt=s_sqrt,
+                  noise=noise)
 
-    approx(olmm_pp.logpdf(x, y), olmm.logpdf(x, y), decimal=7)
+    approx(oilmm_pp.logpdf(x, y), oilmm.logpdf(x, y), decimal=7)

@@ -1,7 +1,7 @@
 Application Programming Interface
 =================================
 
-.. automodule:: olmm
+.. automodule:: oilmm
     :members:
     :undoc-members:
     :show-inheritance:
@@ -9,4 +9,4 @@ Application Programming Interface
 .. toctree::
    :glob:
 
-   source/olmm.*
+   source/oilmm.*

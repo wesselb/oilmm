@@ -5,7 +5,7 @@ import numpy as np
 from stheno import Graph, GP, EQ, Delta, WeightedUnique, Obs
 from varz import Vars, sequential
 
-__all__ = ['IGP', 'OLMM']
+__all__ = ['IGP', 'OILMM']
 
 
 def _eq_constructor(vs):
@@ -180,12 +180,12 @@ def _pinv(a):
     return B.cholsolve(B.chol(B.reg(B.matmul(a, a, tr_a=True))), B.transpose(a))
 
 
-class OLMM:
-    """Orthogonal linear mixing model.
+class OILMM:
+    """Orthogonal Instantaneous Linear Mixing model.
 
     Args:
         vs (:class:`varz.Vars`, optional): Variable container.
-        model (:class:`.olmm.IGP`): Model for the latent processes.
+        model (:class:`.oilmm.IGP`): Model for the latent processes.
         u (matrix): Orthogonal part of the mixing matrix.
         s_sqrt (vector): Diagonal part of the mixing matrix.
         noise (scalar, optional): Observation noise. Defaults to `1e-2`.

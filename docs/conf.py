@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# olmm documentation build configuration file, created by
+# oilmm documentation build configuration file, created by
 # sphinx-quickstart.
 #
 # This file is execfile()d with the current directory set to its
@@ -18,8 +18,8 @@
 
 import os
 import sys
-sys.path.insert(0, os.path.abspath('..'))
 
+sys.path.insert(0, os.path.abspath('..'))
 
 # -- General configuration ------------------------------------------------
 
@@ -51,7 +51,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'olmm'
+project = u'oilmm'
 copyright = u'2019, Wessel Bruinsma'
 author = u'Wessel Bruinsma'
 
@@ -81,7 +81,6 @@ pygments_style = 'sphinx'
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True
-
 
 # -- Options for HTML output ----------------------------------------------
 
@@ -113,12 +112,10 @@ html_sidebars = {
     ]
 }
 
-
 # -- Options for HTMLHelp output ------------------------------------------
 
 # Output file base name for HTML help builder.
 htmlhelp_basename = 'doc'
-
 
 # -- Options for LaTeX output ---------------------------------------------
 
@@ -144,20 +141,18 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'olmm.tex', u'OLMM Documentation',
+    (master_doc, 'oilmm.tex', u'OILMM Documentation',
      u'Wessel Bruinsma', 'manual'),
 ]
-
 
 # -- Options for manual page output ---------------------------------------
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'olmm', u'OLMM Documentation',
+    (master_doc, 'oilmm', u'OILMM Documentation',
      [author], 1)
 ]
-
 
 # -- Options for Texinfo output -------------------------------------------
 
@@ -165,7 +160,7 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'olmm', u'OLMM Documentation',
-     author, 'olmm', 'Implementation of the Orthogonal Linear Mixing Model',
+    (master_doc, 'oilmm', u'OILMM Documentation',
+     author, 'oilmm', 'Implementation of the Orthogonal Linear Mixing Model',
      'Miscellaneous'),
 ]

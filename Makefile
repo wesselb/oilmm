@@ -1,6 +1,6 @@
 .PHONY: docmake docopen docinit docremove docupdate install test clean
 
-PACKAGE := olmm
+PACKAGE := oilmm
 
 docmake:
 	rm -rf docs/source
