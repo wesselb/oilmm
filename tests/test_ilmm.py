@@ -79,11 +79,11 @@ def test_missing_data(construct_ilmm, x):
 class TrackedIterator:
     """An iterator that keeps track of whether it has been used.
 
-    Attributes:
-        used (bool): Boolean indicating whether it has been usd.
-
     Args:
         wrap (object): Object to wrap.
+
+    Attributes:
+        used (bool): Boolean indicating whether it has been usd.
     """
     instances = []
 
