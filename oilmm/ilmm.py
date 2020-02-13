@@ -1,8 +1,43 @@
 from lab import B
 from plum import Dispatcher, Referentiable, Self
 from stheno import GP, Delta, Graph, Obs
+from varz import Vars
+from varz.spec import sequential
+import numpy as np
 
-__all__ = ['ILMMPP']
+__all__ = ['ilmmpp', 'ILMMPP']
+
+
+def ilmmpp(kernel_constructor, h, noise_obs=1e-2, noises_latent=None, vs=None):
+    """Convenience constructor for the ILMM.
+
+    Args:
+        kernel_constructor (function): Function that takes in a variable
+            container and gives back a kernel.
+        h (tensor): Mixing matrix.
+        noise_obs (scalar, optional): Observation noise. Defaults to `1e-2`.
+        noises_latent (vector, optional): Latent noises. Defaults to `1e-2`.
+        vs (:class:`varz.Vars`): Variable container.
+
+    Returns:
+        :class:`.ilmm.ILMPPP`: Model instance.
+    """
+    p, m = B.shape(h)
+
+    # Perform automatic initialisations.
+    if vs is None:
+        vs = Vars(np.float64)
+
+    if noises_latent is None:
+        noises_latent = 1e-2 * B.ones(m)
+
+    # Construct model parameters.
+    h = vs.unbounded(h, name='h')
+    noise_obs = vs.positive(noise_obs, name='noise_obs')
+    noises_latent = vs.positive(noises_latent, name='noises_latent')
+    kernels = [sequential(f'gp{i}/')(kernel_constructor)(vs) for i in range(m)]
+
+    return ILMMPP(kernels, h, noise_obs, noises_latent)
 
 
 def _to_tuples(x, y):
@@ -37,8 +72,8 @@ class ILMMPP(metaclass=Referentiable):
     Args:
         kernels (list[:class:`stheno.Kernel`]) Kernels.
         h (tensor): Mixing matrix.
-        noise_obs (tensor): Observation noise. One.
-        noises_latent (tensor): Latent noises. One per latent process.
+        noise_obs (scalar): Observation noise. One.
+        noises_latent (vector): Latent noises.
     """
     _dispatch = Dispatcher(in_class=Self)
 

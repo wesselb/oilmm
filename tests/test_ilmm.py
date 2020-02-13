@@ -3,7 +3,7 @@ import pytest
 from lab import B
 from stheno import EQ
 
-from oilmm.ilmm import _to_tuples, ILMMPP
+from oilmm.ilmm import _to_tuples, ILMMPP, ilmmpp
 from .util import allclose, approx
 
 
@@ -133,3 +133,8 @@ def test_predict(construct_ilmm, x):
     # Test that predictions match sample and have low uncertainty.
     approx(means, y, decimal=3)
     assert B.all(uppers - lowers < 1e-4)
+
+
+def test_convenience_constructor():
+    # Test that the convenience constructor runs and fills defaults.
+    ilmmpp(lambda vs: vs.pos() * EQ().stretch(vs.pos()), B.randn(3, 2))
