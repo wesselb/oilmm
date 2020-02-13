@@ -98,7 +98,7 @@ class ILMMPP(metaclass=Referentiable):
             for j in range(m):
                 self.fs[i] += xs_noisy[j] * h[i, j]
 
-        # Create two observed process.
+        # Create observed processes.
         self.ys = [f + GP(noise_obs * Delta(), graph=self.graph)
                    for f in self.fs]
         self.y = self.graph.cross(*self.ys)
