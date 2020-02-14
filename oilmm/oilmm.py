@@ -1,29 +1,11 @@
 import warnings
 
 import lab as B
-import numpy as np
-from stheno import Graph, GP, EQ, Delta, WeightedUnique, Obs
-from varz import Vars, sequential
+from matrix import AbstractMatrix, Dense, Diagonal
+from plum import Dispatcher, Self, Referentiable
+from stheno import Graph, GP, Delta, WeightedUnique
 
-__all__ = ['IGP', 'OILMM']
-
-
-def _eq_constructor(vs):
-    return vs.pos(1) * EQ().stretch(vs.pos(1))
-
-
-def _construct_gps(vs, igp, p):
-    fs = []
-    es = []
-
-    for i, noise in enumerate(igp.construct_noises(p)):
-        kernel = sequential(f'gp{i}/')(igp.kernel_constructor)(vs)
-
-        g = Graph()
-        fs.append(GP(kernel, graph=g))
-        es.append(GP(noise * Delta(), graph=g))
-
-    return fs, es
+__all__ = ['OILMM']
 
 
 def _per_output(x, y, w):
@@ -39,45 +21,28 @@ def _per_output(x, y, w):
         yield x[available], yi[available], wi[available]
 
 
-class IGP:
+class IGP(metaclass=Referentiable):
     """Independent GPs.
 
     Args:
-        vs (:class:`varz.Vars`, optional): Variable container.
-        kernel_constructor (function, optional): Function that takes in a
-            variable container and gives back a kernel. Defaults to an
-            exponentiated quadratic kernel.
-        noise (scalar, optional): Observation noise. Defaults to `1e-2`.
+        kernels (list[:class:`stheno.Kernel`]): Kernels.
+        noises (vector): Observation noises.
     """
+    _dispatch = Dispatcher(in_class=Self)
 
-    def __init__(self,
-                 vs=None,
-                 kernel_constructor=_eq_constructor,
-                 noise=1e-2):
-        if vs is None:
-            vs = Vars(np.float64)
+    @_dispatch(list, B.Numeric)
+    def __init__(self, kernels, noises):
+        graph = Graph()
+        fs = [GP(kernel, graph=graph) for kernel in kernels]
+        IGP.__init__(self, graph, fs, noises)
 
-        self.vs = vs
-        self.kernel_constructor = kernel_constructor
-        self.noise = noise
-
-        self.p = None
-        self.x_train = None
-        self.y_train = None
-        self.w_train = None
-
-    def construct_noises(self, p):
-        """Construct the observation noises.
-
-        Args:
-            p (int): Number of outputs.
-
-        Returns:
-            vector: Observation noises.
-        """
-        noises = [self.vs.pos(self.noise, name=f'gp{i}/noise')
-                  for i in range(p)]
-        return B.concat(*[noise[None] for noise in noises])
+    @_dispatch(Graph, list, B.Numeric)
+    def __init__(self, graph, fs, noises):
+        self.graph = graph
+        self.fs = fs
+        self.fs_noisy = [f + GP(noises[i] * Delta(), graph=graph)
+                         for i, f in enumerate(self.fs)]
+        self.noises = noises
 
     def logpdf(self, x, y, w):
         """Compute the logpdf.
@@ -91,10 +56,7 @@ class IGP:
             scalar: Logpdf.
         """
         logpdf = 0
-        for (f, e), (xi, yi, wi) in \
-                zip(zip(*_construct_gps(self.vs, self, B.shape(y)[1])),
-                    _per_output(x, y, w)):
-            f_noisy = f + e
+        for f_noisy, (xi, yi, wi) in zip(self.fs_noisy, _per_output(x, y, w)):
             logpdf = logpdf + f_noisy(WeightedUnique(xi, wi)).logpdf(yi)
         return logpdf
 
@@ -106,98 +68,88 @@ class IGP:
             y (matrix): Observations of training data.
             w (matrix): Weights of training data.
         """
-        self.p = B.shape(y)[1]
+        fs_post = []
+        for f, f_noisy, (xi, yi, wi) in zip(self.fs,
+                                            self.fs_noisy,
+                                            _per_output(x, y, w)):
+            fs_post.append(f | (f_noisy(WeightedUnique(xi, wi)), yi))
+        return IGP(self.graph, fs_post, self.noises)
 
-        self.x_train = x
-        self.y_train = y
-        self.w_train = w
-
-    def predict(self, x, latent=False, variances=False):
+    def predict(self, x, latent=False, return_variances=False):
         """Predict.
 
         Args:
             x (matrix): Input locations to predict at.
             latent (bool, optional): Predict noiseless processes. Defaults
                 to `False`.
-            variances (bool, optional): Return means and variances instead.
-                Defaults to `False`.
+            return_variances (bool, optional): Return means and variances
+                instead. Defaults to `False`.
 
         Returns:
             tuple: Tuple containing means, lower 95% central credible bound,
                 and upper 95% central credible bound if `variances` is `False`,
                 and means and variances otherwise.
         """
-        means = []
-        vars = []
-
-        for (f, e), (xi, yi, wi) in \
-                zip(zip(*_construct_gps(self.vs, self, self.p)),
-                    _per_output(self.x_train, self.y_train, self.w_train)):
-            obs = Obs((f + e)(WeightedUnique(xi, wi)), yi)
-            if latent:
-                post = f | obs
-            else:
-                post = (f + e) | obs
-            means.append(B.squeeze(B.dense(post.mean(x))))
-            vars.append(B.squeeze(B.dense(post.kernel.elwise(x))))
-
-        means = B.stack(*means, axis=1)
-        vars = B.stack(*vars, axis=1)
-
-        if variances:
-            return means, vars
+        if latent:
+            ps = self.fs
         else:
-            error = 2 * B.sqrt(vars)
+            ps = self.fs_noisy
+
+        means = B.stack(*[B.squeeze(B.dense(p.mean(x)))
+                          for p in ps],
+                        axis=1)
+        variances = B.stack(*[B.squeeze(B.dense(p.kernel.elwise(x)))
+                              for p in ps],
+                            axis=1)
+
+        if return_variances:
+            return means, variances
+        else:
+            error = 2 * B.sqrt(variances)
             return means, means - error, means + error
 
-    def sample(self, x, p, latent=False):
+    def sample(self, x, latent=False):
         """Sample from the model.
 
         Args:
             x (matrix): Locations to sample at.
-            p (int): Number of outputs to sample.
             latent (bool, optional): Sample noiseless processes. Defaults
                 to `False`.
 
         Returns:
             matrix: Sample.
         """
-        samples = []
-        for f, e in zip(*_construct_gps(self.vs, self, p)):
-            if latent:
-                process = f
-            else:
-                process = f + e
-            samples.append(B.squeeze(process(x).sample()))
-        return B.stack(*samples, axis=1)
+        if latent:
+            processes = self.fs
+        else:
+            processes = self.fs_noisy
+
+        return B.concat(*[p(x).sample() for p in processes], axis=1)
 
 
-def _pd_inv(a):
-    return B.cholsolve(B.chol(B.reg(a)), B.eye(a))
-
-
-def _pinv(a):
-    return B.cholsolve(B.chol(B.reg(B.matmul(a, a, tr_a=True))), B.transpose(a))
-
-
-class OILMM:
+class OILMM(metaclass=Referentiable):
     """Orthogonal Instantaneous Linear Mixing model.
 
     Args:
-        vs (:class:`varz.Vars`, optional): Variable container.
-        model (:class:`.oilmm.IGP`): Model for the latent processes.
+        kernels (list[:class:`stheno.Kernel`]) Kernels.
         u (matrix): Orthogonal part of the mixing matrix.
-        s_sqrt (vector): Diagonal part of the mixing matrix.
-        noise (scalar, optional): Observation noise. Defaults to `1e-2`.
-    """
+        s_sqrt (matrix): Diagonal part of the mixing matrix.
+        noise_obs (scalar): Observation noise.
 
-    def __init__(self, vs, model, u, s_sqrt, noise=1e-2):
-        self.vs = vs
+    """
+    _dispatch = Dispatcher(in_class=Self)
+
+    @_dispatch(list, AbstractMatrix, Diagonal, B.Numeric, B.Numeric)
+    def __init__(self, kernels, u, s_sqrt, noise_obs, noises_latent):
+        OILMM.__init__(self, IGP(kernels, noises_latent), u, s_sqrt, noise_obs)
+
+    @_dispatch(object, AbstractMatrix, Diagonal, B.Numeric)
+    def __init__(self, model, u, s_sqrt, noise_obs):
         self.model = model
         self.u = u
         self.s_sqrt = s_sqrt
-        self.h = u * s_sqrt[None, :]
-        self.noise = noise
+        self.h = u @ s_sqrt
+        self.noise_obs = noise_obs
 
         self.p, self.m = B.shape(u)
 
@@ -214,6 +166,20 @@ class OILMM:
         proj_x, proj_y, proj_w, reg = self._project(x, y)
         return self.model.logpdf(proj_x, proj_y, proj_w) - reg
 
+    def condition(self, x, y):
+        """Condition the model.
+
+        Args:
+            x (matrix): Locations of training data.
+            y (matrix): Observations of training data.
+        """
+        self.p = B.shape(y)[1]
+        proj_x, proj_y, proj_w, _ = self._project(x, y)
+        return OILMM(self.model.condition(proj_x, proj_y, proj_w),
+                     self.u,
+                     self.s_sqrt,
+                     self.noise_obs)
+
     def _project(self, x, y):
         n = B.shape(x)[0]
         available = ~B.isnan(B.to_numpy(y))
@@ -223,7 +189,7 @@ class OILMM:
 
         if len(patterns) > 30:
             warnings.warn(f'Detected {len(patterns)} patterns, which is more '
-                          f'than 30.',
+                          f'than 30 and can be slow.',
                           category=UserWarning)
 
         # Per pattern, find data points that belong to it.
@@ -254,79 +220,74 @@ class OILMM:
                total_reg
 
     def _project_pattern(self, x, y, pattern):
-        # Filter by the given pattern.
-        y = B.take(y, pattern, axis=1)
+        if all(pattern):
+            # All data is available. Nothing to be done.
+            u = self.u
+        else:
+            # Data is missing. Pick the available entries.
+            y = B.take(y, pattern, axis=1)
+            # Ensure that `u` remains a structured matrix.
+            u = Dense(B.take(self.u, pattern))
 
         # Get number of data points and outputs in this part of the data.
         n = B.shape(x)[0]
         p = sum(pattern)
 
         # Build mixing matrix and projection.
-        u = B.take(self.u, pattern)
-        h = u * self.s_sqrt[None, :]
-        u_pinv = _pinv(u)
-        proj = u_pinv / self.s_sqrt[:, None]
+        h = B.matmul(u, self.s_sqrt)
+        proj = B.solve(self.s_sqrt, B.pinv(u))
 
         # Perform projection.
         proj_y = B.matmul(y, proj, tr_b=True)
 
         # Compute projected noise.
-        proj_noise = self.noise / self.s_sqrt ** 2 * \
-                     B.diag(_pd_inv(B.matmul(u, u, tr_a=True)))
+        proj_noise = self.noise_obs / B.diag(self.s_sqrt) ** 2 * \
+                     B.diag(B.pd_inv(B.matmul(u, u, tr_a=True)))
 
         # Convert projected noise to weights.
-        noises = self.model.construct_noises(self.m)
+        noises = self.model.noises
         weights = noises / (noises + proj_noise)
-        proj_w = B.ones(self.vs.dtype, n, self.m) * weights[None, :]
+        proj_w = B.ones(B.dtype(weights), n, self.m) * weights[None, :]
 
         # Compute regularising term.
-        proj_y_orth = y - B.matmul(proj_y, h, tr_b=True)
-        reg = 0.5 * (n * (p - self.m) * B.log(2 * B.pi * self.noise) +
-                     B.sum(proj_y_orth ** 2) / self.noise +
-                     n * B.logdet(B.reg(B.matmul(u, u, tr_a=True))) +
-                     n * 2 * B.sum(B.log(self.s_sqrt)))
+        proj_y_orth = B.subtract(y, B.matmul(proj_y, h, tr_b=True))
+        reg = 0.5 * (n * (p - self.m) * B.log(2 * B.pi * self.noise_obs) +
+                     B.sum(proj_y_orth ** 2) / self.noise_obs +
+                     n * B.logdet(B.matmul(u, u, tr_a=True)) +
+                     n * 2 * B.logdet(self.s_sqrt))
 
         return x, proj_y, proj_w, reg
 
-    def condition(self, x, y):
-        """Condition the model.
-
-        Args:
-            x (matrix): Locations of training data.
-            y (matrix): Observations of training data.
-        """
-        self.p = B.shape(y)[1]
-        proj_x, proj_y, proj_w, _ = self._project(x, y)
-        self.model.condition(proj_x, proj_y, proj_w)
-
-    def predict(self, x, latent=False, variances=False):
+    def predict(self, x, latent=False, return_variances=False):
         """Predict.
 
         Args:
             x (matrix): Input locations to predict at.
             latent (bool, optional): Predict noiseless processes. Defaults
                 to `False`.
-            variances (bool, optional): Return means and variances instead.
-                Defaults to `False`.
+            return_variances (bool, optional): Return means and variances
+                instead. Defaults to `False`.
 
         Returns:
-            tuple: Tuple containing means, lower 95% central credible bound,
-                and upper 95% central credible bound if `variances` is `False`,
-                and means and variances otherwise.
+            tuple[matrix]: Tuple containing means, lower 95% central credible
+                bound, and upper 95% central credible bound if `variances` is
+                `False`, and means and variances otherwise.
         """
-        means, vars = self.model.predict(x, latent=latent, variances=True)
+        means, variances = self.model.predict(x,
+                                              latent=latent,
+                                              return_variances=True)
 
         # Pull means and variances through mixing matrix.
-        means = B.matmul(means, self.h, tr_b=True)
-        vars = B.matmul(vars, self.h ** 2, tr_b=True)
+        means = B.dense(B.matmul(means, self.h, tr_b=True))
+        variances = B.dense(B.matmul(variances, self.h ** 2, tr_b=True))
 
         if not latent:
-            vars = vars + self.noise
+            variances = variances + self.noise_obs
 
-        if variances:
-            return means, vars
+        if return_variances:
+            return means, variances
         else:
-            error = 2 * B.sqrt(vars)
+            error = 2 * B.sqrt(variances)
             return means, means - error, means + error
 
     def sample(self, x, latent=False):
@@ -340,9 +301,9 @@ class OILMM:
         Returns:
             matrix: Sample.
         """
-        latent_sample = self.model.sample(x, p=self.m, latent=latent)
-        observed_sample = B.matmul(latent_sample, self.h, tr_b=True)
+        sample = B.dense(B.matmul(self.model.sample(x, latent=latent),
+                                  self.h,
+                                  tr_b=True))
         if not latent:
-            observed_sample = observed_sample + \
-                              B.sqrt(self.noise) * B.randn(observed_sample)
-        return observed_sample
+            sample = sample + B.sqrt(self.noise_obs) * B.randn(sample)
+        return sample

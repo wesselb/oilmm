@@ -6,29 +6,25 @@ from stheno import GP, Delta, Graph, Obs
 __all__ = ['ILMMPP']
 
 
-def _to_tuples(x, y):
-    """Extract tuples with the input locations, output index,
-    and observations from a matrix of observations.
+def _per_output(x, y):
+    p = B.shape(y)[1]
 
-    Args:
-        x (tensor): Input locations.
-        y (tensor): Outputs.
+    for i in range(p):
+        yi = y[:, i]
 
-    Returns:
-        list[tuple]: List of tuples with the input locations, output index,
-            and observations.
-    """
-    xys = []
-    for i in range(B.shape(y)[1]):
-        mask = ~B.isnan(y[:, i])
-        if B.any(mask):
-            xys.append((x[mask], i, y[mask, i]))
+        # Only return available observations.
+        available = ~B.isnan(yi)
 
-    # Ensure that any data was extracted.
-    if len(xys) == 0:
-        raise ValueError('No data was extracted.')
+        yield x[available], i, yi[available]
 
-    return xys
+
+def _matmul(a, x):
+    n, m = B.shape(a)
+    out = [0 for _ in range(n)]
+    for i in range(n):
+        for j in range(m):
+            out[i] += a[i, j] * x[j]
+    return out
 
 
 class ILMMPP(metaclass=Referentiable):
@@ -45,40 +41,31 @@ class ILMMPP(metaclass=Referentiable):
 
     @_dispatch(list, AbstractMatrix, B.Numeric, B.Numeric)
     def __init__(self, kernels, h, noise_obs, noises_latent):
-        self.graph = Graph()
-        p, m = B.shape(h)
+        graph = Graph()
 
         # Create latent processes.
-        xs = [GP(k, graph=self.graph) for k in kernels]
+        xs = [GP(k, graph=graph) for k in kernels]
+        ILMMPP.__init__(self, graph, xs, h, noise_obs, noises_latent)
 
-        # Create latent noise.
-        es = [GP(noise * Delta(), graph=self.graph)
-              for noise in noises_latent]
+    @_dispatch(Graph, list, AbstractMatrix, B.Numeric, B.Numeric)
+    def __init__(self, graph, xs, h, noise_obs, noises_latent):
+        self.graph = graph
+        self.xs = xs
+        self.h = h
+        self.noise_obs = noise_obs
+        self.noises_latent = noises_latent
 
         # Create noisy latent processes.
-        xs_noisy = [x + e for x, e in zip(xs, es)]
+        xs_noisy = [x + GP(self.noises_latent[i] * Delta(), graph=self.graph)
+                    for i, x in enumerate(xs)]
 
-        # Construct both noiseless and noisy :math:`f`s.
-        self.fs = [0 for _ in range(p)]
-        fs_noisy = [0 for _ in range(p)]
-
-        # Multiply with mixing matrix.
-        for i in range(p):
-            for j in range(m):
-                self.fs[i] += xs[j] * h[i, j]
-                fs_noisy[i] += xs_noisy[j] * h[i, j]
+        # Create noiseless observed processes.
+        self.fs = _matmul(self.h, self.xs)
 
         # Create observed processes.
-        self.ys = [f + GP(noise_obs * Delta(), graph=self.graph)
+        fs_noisy = _matmul(self.h, xs_noisy)
+        self.ys = [f + GP(self.noise_obs * Delta(), graph=self.graph)
                    for f in fs_noisy]
-        self.y = self.graph.cross(*self.ys)
-
-    @_dispatch(Graph, list, list, GP)
-    def __init__(self, graph, fs, ys, y):
-        self.graph = graph
-        self.fs = fs
-        self.ys = ys
-        self.y = y
 
     def logpdf(self, x, y):
         """Compute the logpdf of data.
@@ -90,7 +77,7 @@ class ILMMPP(metaclass=Referentiable):
         Returns:
             tensor: Logpdf of data.
         """
-        obs = Obs(*[(self.ys[i](x), y) for x, i, y in _to_tuples(x, y)])
+        obs = Obs(*[(self.ys[i](x), y) for x, i, y in _per_output(x, y)])
         return self.graph.logpdf(obs)
 
     def condition(self, x, y):
@@ -100,23 +87,31 @@ class ILMMPP(metaclass=Referentiable):
             x (tensor): Input locations.
             y (tensor): Observed values.
         """
-        obs = Obs(*[(self.ys[i](x), y) for x, i, y in _to_tuples(x, y)])
+        obs = Obs(*[(self.ys[i](x), y) for x, i, y in _per_output(x, y)])
         return ILMMPP(self.graph,
-                      [p | obs for p in self.fs],
-                      [p | obs for p in self.ys],
-                      self.y | obs)
+                      [x | obs for x in self.xs],
+                      self.h,
+                      self.noise_obs,
+                      self.noises_latent)
 
-    def predict(self, x):
+    def predict(self, x, latent=False):
         """Compute marginals.
 
         Args:
             x (tensor): Inputs to construct marginals at.
+            latent (bool, optional): Predict noiseless processes. Defaults
+                to `False`.
 
         Returns:
             tuple[matrix]: Tuple containing means, lower 95% central credible
                 bound, and upper 95% central credible bound.
         """
-        means, lowers, uppers = zip(*[y(x).marginals() for y in self.ys])
+        if latent:
+            ps = self.fs
+        else:
+            ps = self.ys
+
+        means, lowers, uppers = zip(*[p(x).marginals() for p in ps])
         return B.stack(*means, axis=1), \
                B.stack(*lowers, axis=1), \
                B.stack(*uppers, axis=1)
@@ -129,6 +124,10 @@ class ILMMPP(metaclass=Referentiable):
             latent (bool, optional): Sample noiseless processes. Defaults to
                 `False`.
         """
-        ps = self.fs if latent else self.ys
+        if latent:
+            ps = self.fs
+        else:
+            ps = self.ys
+
         samples = self.graph.sample(*[p(x) for p in ps])
         return B.concat(*samples, axis=1)
