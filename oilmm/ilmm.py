@@ -1,43 +1,9 @@
 from lab import B
+from matrix import AbstractMatrix
 from plum import Dispatcher, Referentiable, Self
 from stheno import GP, Delta, Graph, Obs
-from varz import Vars
-from varz.spec import sequential
-import numpy as np
 
-__all__ = ['ilmmpp', 'ILMMPP']
-
-
-def ilmmpp(kernel_constructor, h, noise_obs=1e-2, noises_latent=None, vs=None):
-    """Convenience constructor for the ILMM.
-
-    Args:
-        kernel_constructor (function): Function that takes in a variable
-            container and gives back a kernel.
-        h (tensor): Mixing matrix.
-        noise_obs (scalar, optional): Observation noise. Defaults to `1e-2`.
-        noises_latent (vector, optional): Latent noises. Defaults to `1e-2`.
-        vs (:class:`varz.Vars`): Variable container.
-
-    Returns:
-        :class:`.ilmm.ILMPPP`: Model instance.
-    """
-    p, m = B.shape(h)
-
-    # Perform automatic initialisations.
-    if vs is None:
-        vs = Vars(np.float64)
-
-    if noises_latent is None:
-        noises_latent = 1e-2 * B.ones(m)
-
-    # Construct model parameters.
-    h = vs.unbounded(h, name='h')
-    noise_obs = vs.positive(noise_obs, name='noise_obs')
-    noises_latent = vs.positive(noises_latent, name='noises_latent')
-    kernels = [sequential(f'gp{i}/')(kernel_constructor)(vs) for i in range(m)]
-
-    return ILMMPP(kernels, h, noise_obs, noises_latent)
+__all__ = ['ILMMPP']
 
 
 def _to_tuples(x, y):
@@ -71,13 +37,13 @@ class ILMMPP(metaclass=Referentiable):
 
     Args:
         kernels (list[:class:`stheno.Kernel`]) Kernels.
-        h (tensor): Mixing matrix.
+        h (matrix): Mixing matrix.
         noise_obs (scalar): Observation noise. One.
         noises_latent (vector): Latent noises.
     """
     _dispatch = Dispatcher(in_class=Self)
 
-    @_dispatch(list, B.Numeric, B.Numeric, B.Numeric)
+    @_dispatch(list, AbstractMatrix, B.Numeric, B.Numeric)
     def __init__(self, kernels, h, noise_obs, noises_latent):
         self.graph = Graph()
         p, m = B.shape(h)
@@ -92,15 +58,19 @@ class ILMMPP(metaclass=Referentiable):
         # Create noisy latent processes.
         xs_noisy = [x + e for x, e in zip(xs, es)]
 
-        # Multiply with mixing matrix.
+        # Construct both noiseless and noisy :math:`f`s.
         self.fs = [0 for _ in range(p)]
+        fs_noisy = [0 for _ in range(p)]
+
+        # Multiply with mixing matrix.
         for i in range(p):
             for j in range(m):
-                self.fs[i] += xs_noisy[j] * h[i, j]
+                self.fs[i] += xs[j] * h[i, j]
+                fs_noisy[i] += xs_noisy[j] * h[i, j]
 
         # Create observed processes.
         self.ys = [f + GP(noise_obs * Delta(), graph=self.graph)
-                   for f in self.fs]
+                   for f in fs_noisy]
         self.y = self.graph.cross(*self.ys)
 
     @_dispatch(Graph, list, list, GP)
