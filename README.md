@@ -24,3 +24,14 @@ source venv/bin/activate
 pip install -r requirements_dev.txt
 ```
 
+
+## Reproduce Experiments
+
+A shell script is provided to rerun all experiments from the paper at once.
+
+```bash
+sh run_experiments.sh
+```
+
+The results can the be found in the generated `_experiments` folder.
+
