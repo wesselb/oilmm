@@ -4,12 +4,14 @@ import numpy as np
 import pandas as pd
 import torch
 import wbml.plot
+from matrix import Dense
 from stheno import Matern12
 from varz import Vars
 from varz.torch import minimise_l_bfgs_b
 from wbml.data.exchange import load
 from wbml.experiment import WorkingDirectory
-from wbml.lmm import LMMPP
+
+from oilmm import ILMMPP, normalise
 
 wbml.out.report_time = True
 wd = WorkingDirectory('_experiments', 'exchange_ilmm')
@@ -20,9 +22,7 @@ x = np.array(train.index)
 y = np.array(train)
 
 # Normalise data.
-y_mean = np.nanmean(y, keepdims=True, axis=0)
-y_scale = np.nanstd(y, keepdims=True, axis=0)
-y_norm = (y - y_mean) / y_scale
+y_norm, unnormalise = normalise(y)
 
 p = B.shape(y)[1]
 m = 3
@@ -30,16 +30,14 @@ vs = Vars(torch.float64)
 
 
 def construct_model(vs):
-    # Construct model for the latent processes.
     kernels = [vs.pos(1, name=f'{i}/var') *
                Matern12().stretch(vs.pos(0.1, name=f'{i}/scale'))
                for i in range(m)]
     noise = vs.pos(1e-2, name='noise')
-    latent_noise = vs.pos(1e-2 * B.ones(3), name='latent_noise')
-    H = vs.get(shape=(p, m), name='h')
+    latent_noises = vs.pos(1e-2 * B.ones(3), name='latent_noise')
+    h = Dense(vs.get(shape=(p, m), name='h'))
 
-    # Construct LMM.
-    return LMMPP(kernels, noise, latent_noise, H)
+    return ILMMPP(kernels, h, noise, latent_noises)
 
 
 def objective(vs):
@@ -52,13 +50,10 @@ minimise_l_bfgs_b(objective, vs, trace=True, iters=1000)
 # Predict.
 model = construct_model(vs)
 model = model.condition(torch.tensor(x), torch.tensor(y_norm))
-preds, _, _ = model.marginals(torch.tensor(x))
-means, lowers, uppers = B.to_numpy([B.stack(*xs, axis=1) for xs in zip(*preds)])
+means, lowers, uppers = B.to_numpy(model.predict(torch.tensor(x)))
 
 # Undo normalisation
-means = means * y_scale + y_mean
-lowers = lowers * y_scale + y_mean
-uppers = uppers * y_scale + y_mean
+means, lowers, uppers = unnormalise(means, lowers, uppers)
 
 # For the purpose of comparison, standardise using the mean of the *training*
 # data. This is not how the SMSE usually is defined!

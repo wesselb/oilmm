@@ -4,13 +4,14 @@ import numpy as np
 import pandas as pd
 import torch
 import wbml.plot
-from stheno import EQ, Delta
+from matrix import Dense, Diagonal
+from stheno import EQ
 from varz import Vars
 from varz.torch import minimise_l_bfgs_b
 from wbml.data.eeg import load
 from wbml.experiment import WorkingDirectory
 
-from oilmm import IGP, OILMM
+from oilmm import OILMM, normalise
 
 wbml.out.report_time = True
 wd = WorkingDirectory('_experiments', 'eeg')
@@ -21,9 +22,7 @@ x = np.array(train.index)
 y = np.array(train)
 
 # Normalise data.
-y_mean = np.nanmean(y, keepdims=True, axis=0)
-y_scale = np.nanstd(y, keepdims=True, axis=0)
-y_norm = (y - y_mean) / y_scale
+y_norm, unnormalise = normalise(y)
 
 p = B.shape(y)[1]
 m = 3
@@ -31,19 +30,15 @@ vs = Vars(torch.float64)
 
 
 def construct_model(vs):
-    # Construct model for the latent processes.
-    igp = IGP(vs,
-              lambda vs_: (vs_.pos(1) * EQ().stretch(vs_.pos(0.02)) +
-                           vs_.pos(1e-2) * Delta()),
-              vs.pos(1e-2, name='igp/noise'))
+    kernels = [vs.pos(1, name=f'{i}/var') *
+               EQ().stretch(vs.pos(0.02, name=f'{i}/scale'))
+               for i in range(m)]
+    noise = vs.pos(1e-2, name='noise')
+    latent_noises = vs.pos(1e-2 * B.ones(3), name='latent_noise')
+    u = Dense(vs.orth(shape=(p, p), name='u_full')[:, :m])
+    s_sqrt = Diagonal(vs.pos(shape=(m,), name='s_sqrt'))
 
-    # Construct OILMM.
-    oilmm = OILMM(vs,
-                  igp,
-                  vs.orth(shape=(p, p), name='u_full')[:, :m],
-                  vs.pos(shape=(m,), name='s_sqrt'),
-                  vs.pos(1e-2, name='oilmm/noise'))
-    return oilmm
+    return OILMM(kernels, u, s_sqrt, noise, latent_noises)
 
 
 def objective(vs):
@@ -55,13 +50,11 @@ minimise_l_bfgs_b(objective, vs, trace=True, iters=1000)
 
 # Predict.
 model = construct_model(vs)
-model.condition(torch.tensor(x), torch.tensor(y_norm))
+model = model.condition(torch.tensor(x), torch.tensor(y_norm))
 means, lowers, uppers = B.to_numpy(model.predict(x))
 
 # Undo normalisation
-means = means * y_scale + y_mean
-lowers = lowers * y_scale + y_mean
-uppers = uppers * y_scale + y_mean
+means, lowers, uppers = unnormalise(means, lowers, uppers)
 
 # Compute SMSE.
 pred = pd.DataFrame(means, index=train.index, columns=train.columns)
