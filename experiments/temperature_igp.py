@@ -2,7 +2,6 @@ import lab.torch as B
 import numpy as np
 import torch
 import wbml.plot
-from matrix import Dense, Diagonal
 from stheno import Matern52
 from varz import Vars
 from varz.torch import minimise_l_bfgs_b
@@ -12,7 +11,7 @@ from wbml.experiment import WorkingDirectory
 from oilmm import IGP, Normaliser
 
 wbml.out.report_time = True
-wd = WorkingDirectory('_experiments', 'temperature')
+wd = WorkingDirectory('_experiments', 'temperature_igp')
 
 loc, temp, _ = load()
 
