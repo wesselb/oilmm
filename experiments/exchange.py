@@ -11,7 +11,7 @@ from varz.torch import minimise_l_bfgs_b
 from wbml.data.exchange import load
 from wbml.experiment import WorkingDirectory
 
-from oilmm import OILMM, normalise
+from oilmm import OILMM, Normaliser
 
 wbml.out.report_time = True
 wd = WorkingDirectory('_experiments', 'exchange')
@@ -22,7 +22,8 @@ x = np.array(train.index)
 y = np.array(train)
 
 # Normalise data.
-y_norm, unnormalise = normalise(y)
+normaliser = Normaliser(y)
+y_norm = normaliser.normalise(y)
 
 p = B.shape(y)[1]
 m = 3
@@ -34,7 +35,7 @@ def construct_model(vs):
                Matern12().stretch(vs.pos(0.1, name=f'{i}/scale'))
                for i in range(m)]
     noise = vs.pos(1e-2, name='noise')
-    latent_noises = vs.pos(1e-2 * B.ones(3), name='latent_noise')
+    latent_noises = vs.pos(1e-2 * B.ones(m), name='latent_noises')
     u = Dense(vs.orth(shape=(p, p), name='u_full')[:, :m])
     s_sqrt = Diagonal(vs.pos(shape=(m,), name='s_sqrt'))
 
@@ -54,7 +55,7 @@ model = model.condition(torch.tensor(x), torch.tensor(y_norm))
 means, lowers, uppers = B.to_numpy(model.predict(x))
 
 # Undo normalisation
-means, lowers, uppers = unnormalise(means, lowers, uppers)
+means, lowers, uppers = normaliser.unnormalise(means, lowers, uppers)
 
 # For the purpose of comparison, standardise using the mean of the *training*
 # data. This is not how the SMSE usually is defined!
@@ -85,4 +86,3 @@ for i, name in enumerate(test.columns):
 
 plt.tight_layout()
 plt.savefig(wd.file('exchange.pdf'))
-plt.show()

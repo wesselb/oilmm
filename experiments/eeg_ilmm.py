@@ -11,7 +11,7 @@ from varz.torch import minimise_l_bfgs_b
 from wbml.data.eeg import load
 from wbml.experiment import WorkingDirectory
 
-from oilmm import ILMMPP, normalise
+from oilmm import ILMMPP, Normaliser
 
 wbml.out.report_time = True
 wd = WorkingDirectory('_experiments', 'eeg_ilmm')
@@ -22,7 +22,8 @@ x = np.array(train.index)
 y = np.array(train)
 
 # Normalise data.
-y_norm, unnormalise = normalise(y)
+normaliser = Normaliser(y)
+y_norm = normaliser.normalise(y)
 
 p = B.shape(y)[1]
 m = 3
@@ -34,7 +35,7 @@ def construct_model(vs):
                EQ().stretch(vs.pos(0.02, name=f'{i}/scale'))
                for i in range(m)]
     noise = vs.pos(1e-2, name='noise')
-    latent_noises = vs.pos(1e-2 * B.ones(3), name='latent_noise')
+    latent_noises = vs.pos(1e-2 * B.ones(m), name='latent_noises')
     h = Dense(vs.get(shape=(p, m), name='h'))
 
     return ILMMPP(kernels, h, noise, latent_noises)
@@ -53,7 +54,7 @@ model = model.condition(torch.tensor(x), torch.tensor(y_norm))
 means, lowers, uppers = B.to_numpy(model.predict(torch.tensor(x)))
 
 # Undo normalisation
-means, lowers, uppers = unnormalise(means, lowers, uppers)
+means, lowers, uppers = normaliser.unnormalise(means, lowers, uppers)
 
 # Compute SMSE.
 pred = pd.DataFrame(means, index=train.index, columns=train.columns)
@@ -85,4 +86,3 @@ wbml.plot.tweak(legend=False)
 
 plt.tight_layout()
 plt.savefig(wd.file('eeg.pdf'))
-plt.show()
