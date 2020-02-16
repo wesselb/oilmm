@@ -82,13 +82,12 @@ def construct_model(vs):
     s_sqrt_s = Diagonal(s_sqrt)
 
     # Construct components of the mixing matrix over space from a covariance.
-    variance = vs.pos(init=1, name='space/variance')
     scales = vs.pos(init=scales_init, name='space/scales')
     k = Matern52().stretch(scales)
 
     u, s, _ = B.svd(B.dense(k(loc)))
     u_r = Dense(u[:, :m_r])
-    s_sqrt_r = Diagonal(B.sqrt(variance) * B.sqrt(s[:m_r]))
+    s_sqrt_r = Diagonal(B.sqrt(s[:m_r]))
 
     # Compose.
     s_sqrt = Kronecker(s_sqrt_s, s_sqrt_r)
