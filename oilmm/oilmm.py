@@ -1,11 +1,11 @@
 import warnings
 
 import lab as B
-from matrix import AbstractMatrix, Dense, Diagonal
+from matrix import AbstractMatrix, Dense
 from plum import Dispatcher, Self, Referentiable
-from stheno import Graph, GP, Delta, WeightedUnique
+from stheno import Graph, GP, Delta, WeightedUnique, Obs, SparseObservations
 
-__all__ = ['OILMM']
+__all__ = ['OILMM', 'IGP']
 
 
 def _per_output(x, y, w):
@@ -19,6 +19,13 @@ def _per_output(x, y, w):
         available = ~B.isnan(yi)
 
         yield x[available], yi[available], wi[available]
+
+
+def _init_weights(w, y):
+    if w is None:
+        return B.ones(y)
+    else:
+        return w
 
 
 class IGP(metaclass=Referentiable):
@@ -40,39 +47,66 @@ class IGP(metaclass=Referentiable):
     def __init__(self, graph, fs, noises):
         self.graph = graph
         self.fs = fs
-        self.fs_noisy = [f + GP(noises[i] * Delta(), graph=graph)
-                         for i, f in enumerate(self.fs)]
         self.noises = noises
 
-    def logpdf(self, x, y, w):
+        self.es = [GP(noises[i] * Delta(), graph=graph)
+                   for i in range(B.shape(noises)[0])]
+        self.fs_noisy = [f + e for f, e in zip(self.fs, self.es)]
+
+    def logpdf(self, x, y, w=None, x_ind=None):
         """Compute the logpdf.
 
         Args:
             x (matrix): Locations of training data.
             y (matrix): Observations of training data.
-            w (matrix): Weights of training data.
+            w (matrix, optional): Weights of training data.
+            x_ind (matrix, optional): Locations of inducing points.
 
         Returns:
             scalar: Logpdf.
         """
+        w = _init_weights(w, y)
+
         logpdf = 0
-        for f_noisy, (xi, yi, wi) in zip(self.fs_noisy, _per_output(x, y, w)):
-            logpdf = logpdf + f_noisy(WeightedUnique(xi, wi)).logpdf(yi)
+
+        for f, e, f_noisy, (xi, yi, wi) in zip(self.fs,
+                                               self.es,
+                                               self.fs_noisy,
+                                               _per_output(x, y, w)):
+            xwi = WeightedUnique(xi, wi)
+
+            if x_ind is None:
+                logpdf = logpdf + f_noisy(xwi).logpdf(yi)
+            else:
+                obs = SparseObservations(f(x_ind), e, f(xwi), yi)
+                logpdf = logpdf + obs.elbo
+
         return logpdf
 
-    def condition(self, x, y, w):
+    def condition(self, x, y, w=None, x_ind=None):
         """Condition the model.
 
         Args:
             x (matrix): Locations of training data.
             y (matrix): Observations of training data.
-            w (matrix): Weights of training data.
+            w (matrix, optional): Weights of training data.
+            x_ind (matrix, optional): Locations of inducing points.
         """
+        w = _init_weights(w, y)
+
         fs_post = []
-        for f, f_noisy, (xi, yi, wi) in zip(self.fs,
-                                            self.fs_noisy,
-                                            _per_output(x, y, w)):
-            fs_post.append(f | (f_noisy(WeightedUnique(xi, wi)), yi))
+        for f, e, f_noisy, (xi, yi, wi) in zip(self.fs,
+                                               self.es,
+                                               self.fs_noisy,
+                                               _per_output(x, y, w)):
+            xwi = WeightedUnique(xi, wi)
+
+            if x_ind is None:
+                obs = Obs(f_noisy(xwi), yi)
+            else:
+                obs = SparseObservations(f(x_ind), e, f(xwi), yi)
+            fs_post.append(f | obs)
+
         return IGP(self.graph, fs_post, self.noises)
 
     def predict(self, x, latent=False, return_variances=False):
@@ -139,11 +173,7 @@ class OILMM(metaclass=Referentiable):
     """
     _dispatch = Dispatcher(in_class=Self)
 
-    @_dispatch(list, AbstractMatrix, Diagonal, B.Numeric, B.Numeric)
-    def __init__(self, kernels, u, s_sqrt, noise_obs, noises_latent):
-        OILMM.__init__(self, IGP(kernels, noises_latent), u, s_sqrt, noise_obs)
-
-    @_dispatch(object, AbstractMatrix, Diagonal, B.Numeric)
+    @_dispatch(object, AbstractMatrix, AbstractMatrix, B.Numeric)
     def __init__(self, model, u, s_sqrt, noise_obs):
         self.model = model
         self.u = u
@@ -153,36 +183,57 @@ class OILMM(metaclass=Referentiable):
 
         self.p, self.m = B.shape(u)
 
-    def logpdf(self, x, y):
+    @_dispatch(list, AbstractMatrix, AbstractMatrix, B.Numeric, B.Numeric)
+    def __init__(self, kernels, u, s_sqrt, noise_obs, noises_latent):
+        OILMM.__init__(self, IGP(kernels, noises_latent), u, s_sqrt, noise_obs)
+
+    def logpdf(self, x, y, x_ind=None):
         """Compute the logpdf.
 
         Args:
             x (matrix): Locations of training data.
             y (matrix): Observations of training data.
+            x_ind (matrix, optional): Locations of inducing points.
 
         Returns:
             scalar: Logpdf.
         """
-        proj_x, proj_y, proj_w, reg = self._project(x, y)
-        return self.model.logpdf(proj_x, proj_y, proj_w) - reg
+        proj_x, proj_y, proj_w, reg = self.project(x, y)
+        return self.model.logpdf(proj_x, proj_y, proj_w, x_ind=x_ind) - reg
 
-    def condition(self, x, y):
+    def condition(self, x, y, x_ind=None):
         """Condition the model.
 
         Args:
             x (matrix): Locations of training data.
             y (matrix): Observations of training data.
+            x_ind (matrix, optional): Locations of inducing points.
         """
         self.p = B.shape(y)[1]
-        proj_x, proj_y, proj_w, _ = self._project(x, y)
-        return OILMM(self.model.condition(proj_x, proj_y, proj_w),
+        proj_x, proj_y, proj_w, _ = self.project(x, y)
+        return OILMM(self.model.condition(proj_x, proj_y, proj_w, x_ind=x_ind),
                      self.u,
                      self.s_sqrt,
                      self.noise_obs)
 
-    def _project(self, x, y):
+    def project(self, x, y):
+        """Project data.
+
+        Args:
+            x (matrix): Locations of data.
+            y (matrix): Observations of data.
+
+        Returns:
+            tuple: Tuple containing the locations of the projection,
+                the projection, weights associated with the projection, and
+                a regularisation term.
+        """
         n = B.shape(x)[0]
         available = ~B.isnan(B.to_numpy(y))
+
+        # Optimise the case where all data is available.
+        if B.all(available):
+            return self._project_pattern(x, y, (True,) * self.p)
 
         # Extract patterns.
         patterns = list(set(map(tuple, list(available))))
@@ -220,7 +271,10 @@ class OILMM(metaclass=Referentiable):
                total_reg
 
     def _project_pattern(self, x, y, pattern):
-        if all(pattern):
+        # Check whether all data is available.
+        no_missing = all(pattern)
+
+        if no_missing:
             # All data is available. Nothing to be done.
             u = self.u
         else:
@@ -234,11 +288,10 @@ class OILMM(metaclass=Referentiable):
         p = sum(pattern)
 
         # Build mixing matrix and projection.
-        h = B.matmul(u, self.s_sqrt)
-        proj = B.solve(self.s_sqrt, B.pinv(u))
+        proj = B.matmul(B.inv(self.s_sqrt), B.pinv(u))
 
         # Perform projection.
-        proj_y = B.matmul(y, proj, tr_b=True)
+        proj_y = B.matmul(y, B.dense(proj), tr_b=True)
 
         # Compute projected noise.
         proj_noise = self.noise_obs / B.diag(self.s_sqrt) ** 2 * \
@@ -249,10 +302,21 @@ class OILMM(metaclass=Referentiable):
         weights = noises / (noises + proj_noise)
         proj_w = B.ones(B.dtype(weights), n, self.m) * weights[None, :]
 
+        # Compute Frobenius norm.
+        if no_missing:
+            # This is a lot more efficient, but only holds if there is no
+            # missing data.
+            frob = B.sum(y ** 2) - \
+                   B.sum(B.matmul(proj_y, self.s_sqrt, tr_b=True) ** 2)
+        else:
+            # TODO: There might be a more efficient way of computing this.
+            h = B.matmul(u, self.s_sqrt)
+            proj_y_orth = B.subtract(y, B.matmul(proj_y, h, tr_b=True))
+            frob = B.sum(proj_y_orth ** 2)
+
         # Compute regularising term.
-        proj_y_orth = B.subtract(y, B.matmul(proj_y, h, tr_b=True))
         reg = 0.5 * (n * (p - self.m) * B.log(2 * B.pi * self.noise_obs) +
-                     B.sum(proj_y_orth ** 2) / self.noise_obs +
+                     frob / self.noise_obs +
                      n * B.logdet(B.matmul(u, u, tr_a=True)) +
                      n * 2 * B.logdet(self.s_sqrt))
 
