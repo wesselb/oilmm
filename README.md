@@ -27,11 +27,14 @@ pip install -r requirements_dev.txt
 
 ## Reproduce Experiments
 
-A shell script is provided to rerun all experiments from the paper at once.
+Scripts to rerun individual experiments from the paper can be found in the
+`experiments` folder.
+
+A shell script is provided to rerun all experiments from the paper at once:
 
 ```bash
 sh run_experiments.sh
 ```
 
-The results can the be found in the generated `_experiments` folder.
+The results can then be found in the generated `_experiments` folder.
 
