@@ -39,14 +39,6 @@ class ILMMPP(metaclass=Referentiable):
     """
     _dispatch = Dispatcher(in_class=Self)
 
-    @_dispatch(list, AbstractMatrix, B.Numeric, B.Numeric)
-    def __init__(self, kernels, h, noise_obs, noises_latent):
-        graph = Graph()
-
-        # Create latent processes.
-        xs = [GP(k, graph=graph) for k in kernels]
-        ILMMPP.__init__(self, graph, xs, h, noise_obs, noises_latent)
-
     @_dispatch(Graph, list, AbstractMatrix, B.Numeric, B.Numeric)
     def __init__(self, graph, xs, h, noise_obs, noises_latent):
         self.graph = graph
@@ -66,6 +58,14 @@ class ILMMPP(metaclass=Referentiable):
         fs_noisy = _matmul(self.h, xs_noisy)
         self.ys = [f + GP(self.noise_obs * Delta(), graph=self.graph)
                    for f in fs_noisy]
+
+    @_dispatch(list, AbstractMatrix, B.Numeric, B.Numeric)
+    def __init__(self, kernels, h, noise_obs, noises_latent):
+        graph = Graph()
+
+        # Create latent processes.
+        xs = [GP(k, graph=graph) for k in kernels]
+        ILMMPP.__init__(self, graph, xs, h, noise_obs, noises_latent)
 
     def logpdf(self, x, y):
         """Compute the logpdf of data.
