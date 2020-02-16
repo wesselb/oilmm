@@ -81,7 +81,7 @@ def test_logpdf_missing_data():
     # approximation exact.
     u1 = B.svd(B.randn(m, m))[0]
     u2 = B.svd(B.randn(m, m))[0]
-    u = Dense(B.concat(u1, u2, axis=0))
+    u = Dense(B.concat(u1, u2, axis=0) / B.sqrt(2))
 
     s_sqrt = Diagonal(B.rand(m))
 
