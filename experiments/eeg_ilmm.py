@@ -13,76 +13,78 @@ from wbml.experiment import WorkingDirectory
 
 from oilmm import ILMMPP, Normaliser
 
-wbml.out.report_time = True
-wd = WorkingDirectory('_experiments', 'eeg_ilmm')
+if __name__ == '__main__':
 
-_, train, test = load()
+    wbml.out.report_time = True
+    wd = WorkingDirectory('_experiments', 'eeg_ilmm')
 
-x = np.array(train.index)
-y = np.array(train)
+    _, train, test = load()
 
-# Normalise data.
-normaliser = Normaliser(y)
-y_norm = normaliser.normalise(y)
+    x = np.array(train.index)
+    y = np.array(train)
 
-p = B.shape(y)[1]
-m = 3
-vs = Vars(torch.float64)
+    # Normalise data.
+    normaliser = Normaliser(y)
+    y_norm = normaliser.normalise(y)
 
-
-def construct_model(vs):
-    kernels = [vs.pos(1, name=f'{i}/var') *
-               EQ().stretch(vs.pos(0.02, name=f'{i}/scale'))
-               for i in range(m)]
-    noise = vs.pos(1e-2, name='noise')
-    latent_noises = vs.pos(1e-2 * B.ones(m), name='latent_noises')
-    h = Dense(vs.get(shape=(p, m), name='h'))
-
-    return ILMMPP(kernels, h, noise, latent_noises)
+    p = B.shape(y)[1]
+    m = 3
+    vs = Vars(torch.float64)
 
 
-def objective(vs):
-    return -construct_model(vs).logpdf(torch.tensor(x),
-                                       torch.tensor(y_norm))
+    def construct_model(vs):
+        kernels = [vs.pos(1, name=f'{i}/var') *
+                   EQ().stretch(vs.pos(0.02, name=f'{i}/scale'))
+                   for i in range(m)]
+        noise = vs.pos(1e-2, name='noise')
+        latent_noises = vs.pos(1e-2 * B.ones(m), name='latent_noises')
+        h = Dense(vs.get(shape=(p, m), name='h'))
+
+        return ILMMPP(kernels, h, noise, latent_noises)
 
 
-minimise_l_bfgs_b(objective, vs, trace=True, iters=1000)
+    def objective(vs):
+        return -construct_model(vs).logpdf(torch.tensor(x),
+                                           torch.tensor(y_norm))
 
-# Predict.
-model = construct_model(vs)
-model = model.condition(torch.tensor(x), torch.tensor(y_norm))
-means, lowers, uppers = B.to_numpy(model.predict(torch.tensor(x)))
 
-# Undo normalisation
-means, lowers, uppers = normaliser.unnormalise(means, lowers, uppers)
+    minimise_l_bfgs_b(objective, vs, trace=True, iters=1000)
 
-# Compute SMSE.
-pred = pd.DataFrame(means, index=train.index, columns=train.columns)
-smse = ((pred - test) ** 2).mean().mean() / \
-       ((test.mean(axis=0) - test) ** 2).mean().mean()
+    # Predict.
+    model = construct_model(vs)
+    model = model.condition(torch.tensor(x), torch.tensor(y_norm))
+    means, lowers, uppers = B.to_numpy(model.predict(torch.tensor(x)))
 
-# Report and save average SMSE.
-wbml.out.kv('SMSE', smse)
-with open(wd.file('smse.txt'), 'w') as f:
-    f.write(str(smse))
+    # Undo normalisation
+    means, lowers, uppers = normaliser.unnormalise(means, lowers, uppers)
 
-# Name of output to plot.
-name = 'F2'
+    # Compute SMSE.
+    pred = pd.DataFrame(means, index=train.index, columns=train.columns)
+    smse = ((pred - test) ** 2).mean().mean() / \
+           ((test.mean(axis=0) - test) ** 2).mean().mean()
 
-# Plot the result.
-plt.figure(figsize=(12, 2))
-wbml.plot.tex()
+    # Report and save average SMSE.
+    wbml.out.kv('SMSE', smse)
+    with open(wd.file('smse.txt'), 'w') as f:
+        f.write(str(smse))
 
-p = list(train.columns).index(name)
-plt.plot(x, means[:, p], c='tab:blue')
-plt.fill_between(x, lowers[:, p], uppers[:, p],
-                 facecolor='tab:blue', alpha=.25)
-plt.scatter(x, y[:, p], c='tab:green', marker='x', s=10)
-plt.scatter(test[name].index, test[name], c='tab:orange', marker='x', s=10)
-plt.xlabel('Time (second)')
-plt.xlim(0.4, 1)
-plt.ylabel(f'{name} (volt)')
-wbml.plot.tweak(legend=False)
+    # Name of output to plot.
+    name = 'F2'
 
-plt.tight_layout()
-plt.savefig(wd.file('eeg.pdf'))
+    # Plot the result.
+    plt.figure(figsize=(12, 2))
+    wbml.plot.tex()
+
+    p = list(train.columns).index(name)
+    plt.plot(x, means[:, p], c='tab:blue')
+    plt.fill_between(x, lowers[:, p], uppers[:, p],
+                     facecolor='tab:blue', alpha=.25)
+    plt.scatter(x, y[:, p], c='tab:green', marker='x', s=10)
+    plt.scatter(test[name].index, test[name], c='tab:orange', marker='x', s=10)
+    plt.xlabel('Time (second)')
+    plt.xlim(0.4, 1)
+    plt.ylabel(f'{name} (volt)')
+    wbml.plot.tweak(legend=False)
+
+    plt.tight_layout()
+    plt.savefig(wd.file('eeg.pdf'))
