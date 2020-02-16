@@ -14,7 +14,6 @@ from wbml.experiment import WorkingDirectory
 from oilmm import OILMM, Normaliser
 
 if __name__ == '__main__':
-
     B.epsilon = 1e-8
     wbml.out.report_time = True
     wd = WorkingDirectory('_experiments', 'simulators')
@@ -70,7 +69,7 @@ if __name__ == '__main__':
 
     def construct_model(vs):
         kernels = [
-            Matern52().stretch(vs.bnd(6 * 30, lower=2 * 30, name=f'{i}/k_scale'))
+            Matern52().stretch(vs.bnd(6 * 30, lower=60, name=f'{i}/k_scale'))
             for i in range(m)
         ]
         noise = vs.pos(1e-2, name='noise')
@@ -83,7 +82,8 @@ if __name__ == '__main__':
         u_s = Dense(u[:, :m_s])
         s_sqrt_s = Diagonal(s_sqrt)
 
-        # Construct components of the mixing matrix over space from a covariance.
+        # Construct components of the mixing matrix over space from a
+        # covariance.
         scales = vs.pos(init=scales_init, name='space/scales')
         k = Matern52().stretch(scales)
 
