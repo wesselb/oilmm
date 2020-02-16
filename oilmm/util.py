@@ -2,29 +2,71 @@ import lab as B
 from matrix import AbstractMatrix, Kronecker
 import numpy as np
 
-__all__ = ['normalise']
+__all__ = ['Normaliser']
 
 
-def normalise(y):
-    """Normalise data and create an unnormaliser.
+def _to_multiarg(f):
+    def f_multiarg(self, *xs):
+        ys = ()
+        for x in xs:
+            ys += (f(self, x),)
+        return ys[0] if len(ys) == 1 else ys
+
+    return f_multiarg
+
+
+class Normaliser:
+    """Create a data normaliser.
 
     Args:
-        y (matrix): Data to normalise.
-
-    Returns:
-        tuple: Tuple containing the normalised data and a function that
-            undoes the normalisation.
+        y (matrix): Data to base normalisation on.
     """
-    scale = np.nanstd(y, axis=0, keepdims=True)
-    mean = np.nanmean(y, axis=0, keepdims=True)
 
-    def unnormalise(*ys_norm):
-        ys_unnorm = ()
-        for y in ys_norm:
-            ys_unnorm += (y * scale + mean,)
-        return ys_unnorm[0] if len(ys_unnorm) == 1 else ys_unnorm
+    def __init__(self, y):
+        self.mean = np.nanmean(y, axis=0, keepdims=True)
+        self.scale = np.nanstd(y, axis=0, keepdims=True)
 
-    return (y - mean) / scale, unnormalise
+    @_to_multiarg
+    def normalise(self, y):
+        """Perform normalisation.
+
+        Accepts multiple arguments.
+
+        Args:
+            y (matrix): Data to normalise.
+
+        Returns:
+            matrix: Normalised data.
+        """
+        return (y - self.mean) / self.scale
+
+    @_to_multiarg
+    def unnormalise(self, y):
+        """Undo normalisation.
+
+        Accepts multiple arguments.
+
+        Args:
+            y (matrix): Data to unnormalise.
+
+        Returns:
+            matrix: Unnormalised data.
+        """
+        return y * self.scale + self.mean
+
+    @_to_multiarg
+    def normalise_logdet(self, y):
+        """Compute the log-determinant of the Jacobian of the normalisation.
+
+        Accepts multiple arguments.
+
+        Args:
+            y (matrix): Data that was transformed.
+
+        Returns:
+            scalar: Log-determinant.
+        """
+        return -B.shape(y)[0] * B.sum(B.log(self.scale))
 
 
 @B.dispatch(AbstractMatrix)
