@@ -12,7 +12,7 @@ from wbml.experiment import WorkingDirectory
 
 if __name__ == '__main__':
 
-    wd = WorkingDirectory('_experiments', 'simulators')
+    wd = WorkingDirectory('_experiments', 'simulators', log='log_process.txt')
 
     # Process settings:
     parser = argparse.ArgumentParser()

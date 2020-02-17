@@ -64,6 +64,12 @@ if __name__ == '__main__':
     n_ind = int(args.n / 60)  # One inducing point per two months.
     x_ind_init = B.linspace(x_data.min(), x_data.max(), n_ind)
 
+    # Determine initialisation for covariance between sims.
+    rho = 0.5
+    u, s, _ = B.svd((1 - rho) * B.eye(p_s) + rho * B.ones(p_s))
+    u_full_s_init = u
+    s_sqrt_s_init = B.sqrt(s[:m_s])
+
     vs = Vars(torch.float64)
 
 
@@ -76,8 +82,8 @@ if __name__ == '__main__':
         latent_noises = vs.pos(1e-2 * B.ones(m), name='latent_noises')
 
         # Construct component of the mixing matrix over simulators.
-        u = vs.orth(init=B.eye(p_s), shape=(p_s, p_s), name='sims/u_full')
-        s_sqrt = vs.pos(init=B.ones(m_s), shape=(m_s,), name='sims/s_sqrt')
+        u = vs.orth(init=u_full_s_init, shape=(p_s, p_s), name='sims/u_full')
+        s_sqrt = vs.pos(init=s_sqrt_s_init, shape=(m_s,), name='sims/s_sqrt')
 
         u_s = Dense(u[:, :m_s])
         s_sqrt_s = Diagonal(s_sqrt)
