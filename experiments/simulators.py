@@ -14,7 +14,7 @@ from wbml.experiment import WorkingDirectory
 from oilmm import OILMM, Normaliser
 
 if __name__ == '__main__':
-    B.epsilon = 1e-8
+    B.epsilon = 1e-7
     wbml.out.report_time = True
     wd = WorkingDirectory('_experiments', 'simulators')
 
