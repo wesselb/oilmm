@@ -13,6 +13,7 @@ from oilmm import OILMM, Normaliser
 
 if __name__ == '__main__':
 
+    B.epsilon = 1e-8
     wbml.out.report_time = True
     wd = WorkingDirectory('_experiments', 'temperature')
 
