@@ -70,21 +70,20 @@ if __name__ == '__main__':
         f.write(str(smses.mean()))
 
     # Plot the result.
-    plt.figure(figsize=(12, 3))
+    plt.figure(figsize=(12, 2))
     wbml.plot.tex()
 
     for i, name in enumerate(test.columns):
         p = list(train.columns).index(name)  # Index of output.
         plt.subplot(1, 3, i + 1)
-        plt.title(name)
         plt.plot(x, means[:, p], c='tab:blue')
         plt.fill_between(x, lowers[:, p], uppers[:, p],
                          facecolor='tab:blue', alpha=.25)
-        plt.scatter(x, y[:, p], c='tab:green', marker='x', s=10)
-        plt.scatter(test[name].index, test[name], c='tab:orange',
-                    marker='x', s=10)
+        plt.scatter(x, y[:, p], c='black', marker='o', s=8)
+        plt.scatter(test[name].index, test[name],
+                    c='tab:orange', marker='x', s=8)
         plt.xlabel('Time (year)')
-        plt.ylabel('Exchange rate')
+        plt.ylabel(name)
         wbml.plot.tweak(legend=False)
 
     plt.tight_layout()

@@ -72,15 +72,15 @@ if __name__ == '__main__':
     name = 'F2'
 
     # Plot the result.
-    plt.figure(figsize=(12, 2))
+    plt.figure(figsize=(12, 1.75))
     wbml.plot.tex()
 
     p = list(train.columns).index(name)
     plt.plot(x, means[:, p], c='tab:blue')
     plt.fill_between(x, lowers[:, p], uppers[:, p],
                      facecolor='tab:blue', alpha=.25)
-    plt.scatter(x, y[:, p], c='tab:green', marker='x', s=10)
-    plt.scatter(test[name].index, test[name], c='tab:orange', marker='x', s=10)
+    plt.scatter(x, y[:, p], c='black', marker='o', s=8)
+    plt.scatter(test[name].index, test[name], c='tab:orange', marker='x', s=8)
     plt.xlabel('Time (second)')
     plt.xlim(0.4, 1)
     plt.ylabel(f'{name} (volt)')
