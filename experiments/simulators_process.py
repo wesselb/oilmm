@@ -7,7 +7,7 @@ import scipy.cluster.hierarchy as spc
 import wbml.out
 import wbml.plot
 from matplotlib.pyplot import cm
-from wbml.data.stratis import load
+from wbml.data.cmip5 import load
 from wbml.experiment import WorkingDirectory
 
 if __name__ == '__main__':

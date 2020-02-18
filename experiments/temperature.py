@@ -6,7 +6,7 @@ from matrix import Dense, Diagonal
 from stheno import Matern52
 from varz import Vars
 from varz.torch import minimise_l_bfgs_b
-from wbml.data.stratis import load
+from wbml.data.cmip5 import load
 from wbml.experiment import WorkingDirectory
 
 from oilmm import OILMM, Normaliser
