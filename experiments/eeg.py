@@ -38,7 +38,7 @@ if __name__ == '__main__':
                    for i in range(m)]
         noise = vs.pos(1e-2, name='noise')
         latent_noises = vs.pos(1e-2 * B.ones(m), name='latent_noises')
-        u = Dense(vs.orth(shape=(p, p), name='u_full')[:, :m])
+        u = Dense(vs.orth(shape=(p, m), name='u'))
         s_sqrt = Diagonal(vs.pos(shape=(m,), name='s_sqrt'))
 
         return OILMM(kernels, u, s_sqrt, noise, latent_noises)
