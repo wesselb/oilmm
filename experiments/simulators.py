@@ -19,7 +19,7 @@ if __name__ == '__main__':
 
     # Parse script arguments.
     parser = argparse.ArgumentParser()
-    parser.add_argument('-i', type=int, default=2_000,
+    parser.add_argument('-i', type=int, default=1_000,
                         help='Number of optimisation iterations.')
     parser.add_argument('-n', type=int, default=10_000,
                         help='Number of time points.')
