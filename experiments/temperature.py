@@ -1,21 +1,26 @@
+import argparse
+
 import lab.torch as B
 import numpy as np
 import torch
 import wbml.plot
 from matrix import Dense, Diagonal
+from oilmm import OILMM, Normaliser
 from stheno import Matern52
 from varz import Vars
 from varz.torch import minimise_l_bfgs_b
 from wbml.data.cmip5 import load
 from wbml.experiment import WorkingDirectory
 
-from oilmm import OILMM, Normaliser
-
 if __name__ == '__main__':
+    # Parse arguments of script.
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-m', type=int, default=13 * 19)
+    args = parser.parse_args()
 
-    B.epsilon = 1e-8
+    B.epsilon = 1e-6
     wbml.out.report_time = True
-    wd = WorkingDirectory('_experiments', 'temperature')
+    wd = WorkingDirectory('_experiments', f'temperature_{args.m}')
 
     loc, temp, _ = load()
 
@@ -27,7 +32,7 @@ if __name__ == '__main__':
     temp = temp.mean().iloc[::31, :]
 
     # Create train and test splits
-    x = np.array(temp.index)
+    x = np.array([(day - temp.index[0]).days for day in temp.index])
     y = np.array(temp)
 
     # Divide into training and test set.
@@ -47,7 +52,7 @@ if __name__ == '__main__':
     loc = torch.tensor(np.array(loc))
 
     p = B.shape(y)[1]
-    m = p
+    m = args.m
     vs = Vars(torch.float64)
 
 
@@ -61,16 +66,17 @@ if __name__ == '__main__':
              .periodic(365))
             for i in range(m)
         ]
-        noise = vs.pos(1e-2, name='noise')
         latent_noises = vs.pos(1e-2 * B.ones(m), name='latent_noises')
+        noise = vs.pos(1e-2, name='noise')
 
-        # Construct components of mixing matrix from a covariance over outputs.
+        # Construct components of mixing matrix from a covariance over
+        # outputs.
         variance = vs.pos(1, name='h/variance')
         scales = vs.pos(init=scales_init, name='h/scales')
         k = variance * Matern52().stretch(scales)
-        u, s, _ = B.svd(B.dense(k(loc)))
-        u = Dense(u)
-        s_sqrt = Diagonal(B.sqrt(s))
+        u, s, _ = B.svd(B.dense(B.reg(k(loc))))
+        u = Dense(u[:, :m])
+        s_sqrt = Diagonal(B.sqrt(s[:m]))
 
         return OILMM(kernels, u, s_sqrt, noise, latent_noises)
 
@@ -80,6 +86,7 @@ if __name__ == '__main__':
                                            torch.tensor(y_train_norm))
 
 
+    # Perform optimisation.
     minimise_l_bfgs_b(objective, vs, trace=True, iters=1000)
 
     # Print variables.

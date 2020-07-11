@@ -6,16 +6,13 @@ import torch
 import wbml.plot
 from matrix import Dense, Diagonal, Kronecker
 from oilmm import OILMM, Normaliser
-from stheno.torch import Matern52
+from stheno.torch import Matern52 as Mat52
 from varz import Vars
 from varz.torch import minimise_l_bfgs_b
 from wbml.data.cmip5 import load
 from wbml.experiment import WorkingDirectory
 
 if __name__ == '__main__':
-    B.epsilon = 1e-8
-    wbml.out.report_time = True
-    wd = WorkingDirectory('_experiments', 'simulators')
 
     # Parse script arguments.
     parser = argparse.ArgumentParser()
@@ -27,12 +24,26 @@ if __name__ == '__main__':
                         help='Number of latent processes for space.')
     parser.add_argument('-ms', type=int, default=5,
                         help='Number of latent processes for simulators.')
+    parser.add_argument('--separable', action='store_true',
+                        help='Use a separable model.')
     args = parser.parse_args()
+
+    # Determine suffix.
+    if args.separable:
+        suffix = '_separable'
+    else:
+        suffix = ''
+
+    B.epsilon = 1e-8
+    wbml.out.report_time = True
+    wd = WorkingDirectory('_experiments', 'simulators',
+                          log=f'log{suffix}.txt')
 
     # Load data.
     loc, temp, sims = load()
     sims = {k: v for k, v in list(sims.items())}
-    x_data = np.array(temp.index, dtype=np.float64)[:args.n]
+    x_data = np.array([(day - temp.index[0]).days
+                       for day in temp.index[:args.n]])
     y_data = np.concatenate([sim.to_numpy()[:args.n] for sim in sims.values()],
                             axis=1)
     wbml.out.out('Data loaded')
@@ -73,10 +84,16 @@ if __name__ == '__main__':
 
 
     def construct_model(vs):
-        kernels = [
-            Matern52().stretch(vs.bnd(6 * 30, lower=60, name=f'{i}/k_scale'))
-            for i in range(m)
-        ]
+        if args.separable:
+            # Copy same kernel `m` times.
+            kernel = [Mat52().stretch(vs.bnd(6 * 30, lower=60, name='k_scale'))]
+            kernels = kernel * m
+        else:
+            # Parametrise different kernels.
+            kernels = [
+                Mat52().stretch(vs.bnd(6 * 30, lower=60, name=f'{i}/k_scale'))
+                for i in range(m)
+            ]
         noise = vs.bnd(1e-2, name='noise')
         latent_noises = vs.bnd(1e-2 * B.ones(m), name='latent_noises')
 
@@ -90,7 +107,7 @@ if __name__ == '__main__':
         # Construct components of the mixing matrix over space from a
         # covariance.
         scales = vs.bnd(init=scales_init, name='space/scales')
-        k = Matern52().stretch(scales)
+        k = Mat52().stretch(scales)
 
         u, s, _ = B.svd(B.dense(k(loc)))
         u_r = Dense(u[:, :m_r])
@@ -152,4 +169,4 @@ if __name__ == '__main__':
         'learned_parameters': {name: vs[name] for name in vs.names},
         'corr_learned': corr_learned,
         'corr_empirical': corr_empirical
-    }), f'results_mr{m_r}_ms{m_s}.pickle')
+    }), f'results_mr{m_r}_ms{m_s}{suffix}.pickle')

@@ -26,7 +26,7 @@ if __name__ == '__main__':
     temp = temp.mean().iloc[::31, :]
 
     # Create train and test splits
-    x = np.array(temp.index)
+    x = np.array([(day - temp.index[0]).days for day in temp.index])
     y = np.array(temp)
 
     # Divide into training and test set.
