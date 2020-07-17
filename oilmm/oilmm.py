@@ -287,15 +287,14 @@ class OILMM(metaclass=Referentiable):
         n = B.shape(x)[0]
         p = sum(pattern)
 
-        # Build mixing matrix and projection.
-        proj = B.matmul(B.inv(self.s_sqrt), B.pinv(u))
-
         # Perform projection.
-        proj_y = B.matmul(y, B.dense(proj), tr_b=True)
+        proj_y_partial = B.matmul(y, B.pinv(u), tr_b=True)
+        proj_y = B.matmul(proj_y_partial, B.inv(self.s_sqrt), tr_b=True)
 
         # Compute projected noise.
+        u_square = B.matmul(u, u, tr_a=True)
         proj_noise = self.noise_obs / B.diag(self.s_sqrt) ** 2 * \
-                     B.diag(B.pd_inv(B.matmul(u, u, tr_a=True)))
+                     B.diag(B.pd_inv(u_square))
 
         # Convert projected noise to weights.
         noises = self.model.noises
@@ -303,16 +302,8 @@ class OILMM(metaclass=Referentiable):
         proj_w = B.ones(B.dtype(weights), n, self.m) * weights[None, :]
 
         # Compute Frobenius norm.
-        if no_missing:
-            # This is a lot more efficient, but only holds if there is no
-            # missing data.
-            frob = B.sum(y ** 2) - \
-                   B.sum(B.matmul(proj_y, self.s_sqrt, tr_b=True) ** 2)
-        else:
-            # TODO: There might be a more efficient way of computing this.
-            h = B.matmul(u, self.s_sqrt)
-            proj_y_orth = B.subtract(y, B.matmul(proj_y, h, tr_b=True))
-            frob = B.sum(proj_y_orth ** 2)
+        frob = B.sum(y ** 2) - \
+               B.sum(proj_y_partial * B.matmul(proj_y_partial, u_square))
 
         # Compute regularising term.
         reg = 0.5 * (n * (p - self.m) * B.log(2 * B.pi * self.noise_obs) +
