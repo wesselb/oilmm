@@ -1,0 +1,306 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>oilmm.util &mdash; oilmm 0.1.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../../index.html" class="icon icon-home" alt="Documentation Home"> oilmm
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.1
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../readme.html">OILMM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api.html">Application Programming Interface</a></li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">oilmm</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
+        
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+        
+      <li>oilmm.util</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for oilmm.util</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">lab</span> <span class="k">as</span> <span class="nn">B</span>
+<span class="kn">from</span> <span class="nn">matrix</span> <span class="kn">import</span> <span class="n">AbstractMatrix</span><span class="p">,</span> <span class="n">Kronecker</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;Normaliser&quot;</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">_to_multiarg</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">f_multiarg</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">xs</span><span class="p">):</span>
+        <span class="n">ys</span> <span class="o">=</span> <span class="p">()</span>
+        <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">xs</span><span class="p">:</span>
+            <span class="n">ys</span> <span class="o">+=</span> <span class="p">(</span><span class="n">f</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">),)</span>
+        <span class="k">return</span> <span class="n">ys</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">ys</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">ys</span>
+
+    <span class="k">return</span> <span class="n">f_multiarg</span>
+
+
+<div class="viewcode-block" id="Normaliser"><a class="viewcode-back" href="../../source/oilmm.util.html#oilmm.util.Normaliser">[docs]</a><span class="k">class</span> <span class="nc">Normaliser</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;Create a data normaliser.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        y (matrix): Data to base normalisation on.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nanmean</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scale</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nanstd</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Normaliser.normalise"><a class="viewcode-back" href="../../source/oilmm.util.html#oilmm.util.Normaliser.normalise">[docs]</a>    <span class="nd">@_to_multiarg</span>
+    <span class="k">def</span> <span class="nf">normalise</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Perform normalisation.</span>
+
+<span class="sd">        Accepts multiple arguments.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            y (matrix): Data to normalise.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            matrix: Normalised data.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">y</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">mean</span><span class="p">)</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale</span></div>
+
+<div class="viewcode-block" id="Normaliser.unnormalise"><a class="viewcode-back" href="../../source/oilmm.util.html#oilmm.util.Normaliser.unnormalise">[docs]</a>    <span class="nd">@_to_multiarg</span>
+    <span class="k">def</span> <span class="nf">unnormalise</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Undo normalisation.</span>
+
+<span class="sd">        Accepts multiple arguments.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            y (matrix): Data to unnormalise.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            matrix: Unnormalised data.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">y</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">mean</span></div>
+
+<div class="viewcode-block" id="Normaliser.unnormalise_variance"><a class="viewcode-back" href="../../source/oilmm.util.html#oilmm.util.Normaliser.unnormalise_variance">[docs]</a>    <span class="nd">@_to_multiarg</span>
+    <span class="k">def</span> <span class="nf">unnormalise_variance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Undo normalisation for a variance.</span>
+
+<span class="sd">        Accepts multiple arguments.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            y (matrix): Variances to unnormalise.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            matrix: Unnormalised variance.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">y</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale</span> <span class="o">**</span> <span class="mi">2</span></div>
+
+<div class="viewcode-block" id="Normaliser.normalise_logdet"><a class="viewcode-back" href="../../source/oilmm.util.html#oilmm.util.Normaliser.normalise_logdet">[docs]</a>    <span class="nd">@_to_multiarg</span>
+    <span class="k">def</span> <span class="nf">normalise_logdet</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Compute the log-determinant of the Jacobian of the normalisation.</span>
+
+<span class="sd">        Accepts multiple arguments.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            y (matrix): Data that was transformed.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            scalar: Log-determinant.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="o">-</span><span class="n">B</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="n">y</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">B</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">B</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">scale</span><span class="p">))</span></div></div>
+
+
+<span class="nd">@B</span><span class="o">.</span><span class="n">dispatch</span><span class="p">(</span><span class="n">AbstractMatrix</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">pinv</span><span class="p">(</span><span class="n">a</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Compute the left pseudo-inverse.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        a (matrix): Matrix to compute left pseudo-inverse of.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        matrix: Left pseudo-inverse of `a`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">B</span><span class="o">.</span><span class="n">cholsolve</span><span class="p">(</span><span class="n">B</span><span class="o">.</span><span class="n">chol</span><span class="p">(</span><span class="n">B</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">tr_a</span><span class="o">=</span><span class="kc">True</span><span class="p">)),</span> <span class="n">B</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="n">a</span><span class="p">))</span>
+
+
+<span class="nd">@B</span><span class="o">.</span><span class="n">dispatch</span><span class="p">(</span><span class="n">Kronecker</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">pinv</span><span class="p">(</span><span class="n">a</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">Kronecker</span><span class="p">(</span><span class="n">B</span><span class="o">.</span><span class="n">pinv</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">left</span><span class="p">),</span> <span class="n">B</span><span class="o">.</span><span class="n">pinv</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">right</span><span class="p">))</span>
+
+
+<span class="n">B</span><span class="o">.</span><span class="n">pinv</span> <span class="o">=</span> <span class="n">pinv</span>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        
+        &copy; Copyright 2019, Wessel Bruinsma
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

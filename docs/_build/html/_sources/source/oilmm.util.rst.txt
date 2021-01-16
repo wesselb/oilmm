@@ -1,0 +1,7 @@
+oilmm.util module
+=================
+
+.. automodule:: oilmm.util
+   :members:
+   :undoc-members:
+   :show-inheritance:

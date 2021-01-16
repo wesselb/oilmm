@@ -1,0 +1,572 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>oilmm.oilmm &mdash; oilmm 0.1.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../../index.html" class="icon icon-home" alt="Documentation Home"> oilmm
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.1
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../readme.html">OILMM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api.html">Application Programming Interface</a></li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">oilmm</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
+        
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+        
+      <li>oilmm.oilmm</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for oilmm.oilmm</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">warnings</span>
+
+<span class="kn">import</span> <span class="nn">lab</span> <span class="k">as</span> <span class="nn">B</span>
+<span class="kn">from</span> <span class="nn">matrix</span> <span class="kn">import</span> <span class="n">AbstractMatrix</span><span class="p">,</span> <span class="n">Dense</span>
+<span class="kn">from</span> <span class="nn">plum</span> <span class="kn">import</span> <span class="n">Dispatcher</span><span class="p">,</span> <span class="n">Self</span><span class="p">,</span> <span class="n">Referentiable</span><span class="p">,</span> <span class="n">List</span>
+<span class="kn">from</span> <span class="nn">stheno</span> <span class="kn">import</span> <span class="n">GP</span><span class="p">,</span> <span class="n">Delta</span><span class="p">,</span> <span class="n">WeightedUnique</span><span class="p">,</span> <span class="n">Obs</span><span class="p">,</span> <span class="n">SparseObservations</span><span class="p">,</span> <span class="n">Kernel</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;OILMM&quot;</span><span class="p">,</span> <span class="s2">&quot;IGP&quot;</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">_per_output</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">w</span><span class="p">):</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">B</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="n">y</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
+        <span class="n">yi</span> <span class="o">=</span> <span class="n">y</span><span class="p">[:,</span> <span class="n">i</span><span class="p">]</span>
+        <span class="n">wi</span> <span class="o">=</span> <span class="n">w</span><span class="p">[:,</span> <span class="n">i</span><span class="p">]</span>
+
+        <span class="c1"># Only return available observations.</span>
+        <span class="n">available</span> <span class="o">=</span> <span class="o">~</span><span class="n">B</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">yi</span><span class="p">)</span>
+
+        <span class="k">yield</span> <span class="n">x</span><span class="p">[</span><span class="n">available</span><span class="p">],</span> <span class="n">yi</span><span class="p">[</span><span class="n">available</span><span class="p">],</span> <span class="n">wi</span><span class="p">[</span><span class="n">available</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">_init_weights</span><span class="p">(</span><span class="n">w</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">w</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">B</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">w</span>
+
+
+<div class="viewcode-block" id="IGP"><a class="viewcode-back" href="../../source/oilmm.oilmm.html#oilmm.oilmm.IGP">[docs]</a><span class="k">class</span> <span class="nc">IGP</span><span class="p">(</span><span class="n">metaclass</span><span class="o">=</span><span class="n">Referentiable</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Independent GPs.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        kernels (list[:class:`stheno.Kernel`]): Kernels.</span>
+<span class="sd">        noises (vector): Observation noises.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_dispatch</span> <span class="o">=</span> <span class="n">Dispatcher</span><span class="p">(</span><span class="n">in_class</span><span class="o">=</span><span class="n">Self</span><span class="p">)</span>
+
+    <span class="nd">@_dispatch</span><span class="p">(</span><span class="n">List</span><span class="p">(</span><span class="n">Kernel</span><span class="p">),</span> <span class="n">B</span><span class="o">.</span><span class="n">Numeric</span><span class="p">)</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">kernels</span><span class="p">,</span> <span class="n">noises</span><span class="p">):</span>
+        <span class="n">fs</span> <span class="o">=</span> <span class="p">[</span><span class="n">GP</span><span class="p">(</span><span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">kernels</span><span class="p">]</span>
+        <span class="n">IGP</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fs</span><span class="p">,</span> <span class="n">noises</span><span class="p">)</span>
+
+    <span class="nd">@_dispatch</span><span class="p">(</span><span class="n">List</span><span class="p">(</span><span class="n">GP</span><span class="p">),</span> <span class="n">B</span><span class="o">.</span><span class="n">Numeric</span><span class="p">)</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fs</span><span class="p">,</span> <span class="n">noises</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fs</span> <span class="o">=</span> <span class="n">fs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">noises</span> <span class="o">=</span> <span class="n">noises</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">es</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">GP</span><span class="p">(</span><span class="n">noises</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">Delta</span><span class="p">(),</span> <span class="n">measure</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">fs</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">measure</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">B</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="n">noises</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fs_noisy</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="o">+</span> <span class="n">e</span> <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">es</span><span class="p">)]</span>
+
+<div class="viewcode-block" id="IGP.logpdf"><a class="viewcode-back" href="../../source/oilmm.oilmm.html#oilmm.oilmm.IGP.logpdf">[docs]</a>    <span class="k">def</span> <span class="nf">logpdf</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">w</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">x_ind</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Compute the logpdf.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            x (matrix): Locations of training data.</span>
+<span class="sd">            y (matrix): Observations of training data.</span>
+<span class="sd">            w (matrix, optional): Weights of training data.</span>
+<span class="sd">            x_ind (matrix, optional): Locations of inducing points.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            scalar: Logpdf.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">w</span> <span class="o">=</span> <span class="n">_init_weights</span><span class="p">(</span><span class="n">w</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+
+        <span class="n">logpdf</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">f_noisy</span><span class="p">,</span> <span class="p">(</span><span class="n">xi</span><span class="p">,</span> <span class="n">yi</span><span class="p">,</span> <span class="n">wi</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">fs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">es</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">fs_noisy</span><span class="p">,</span> <span class="n">_per_output</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">w</span><span class="p">)</span>
+        <span class="p">):</span>
+            <span class="n">xwi</span> <span class="o">=</span> <span class="n">WeightedUnique</span><span class="p">(</span><span class="n">xi</span><span class="p">,</span> <span class="n">wi</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">x_ind</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">logpdf</span> <span class="o">=</span> <span class="n">logpdf</span> <span class="o">+</span> <span class="n">f_noisy</span><span class="p">(</span><span class="n">xwi</span><span class="p">)</span><span class="o">.</span><span class="n">logpdf</span><span class="p">(</span><span class="n">yi</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">obs</span> <span class="o">=</span> <span class="n">SparseObservations</span><span class="p">(</span><span class="n">f</span><span class="p">(</span><span class="n">x_ind</span><span class="p">),</span> <span class="n">e</span><span class="p">,</span> <span class="n">f</span><span class="p">(</span><span class="n">xwi</span><span class="p">),</span> <span class="n">yi</span><span class="p">)</span>
+                <span class="n">logpdf</span> <span class="o">=</span> <span class="n">logpdf</span> <span class="o">+</span> <span class="n">obs</span><span class="o">.</span><span class="n">elbo</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">measure</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">logpdf</span></div>
+
+<div class="viewcode-block" id="IGP.condition"><a class="viewcode-back" href="../../source/oilmm.oilmm.html#oilmm.oilmm.IGP.condition">[docs]</a>    <span class="k">def</span> <span class="nf">condition</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">w</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">x_ind</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Condition the model.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            x (matrix): Locations of training data.</span>
+<span class="sd">            y (matrix): Observations of training data.</span>
+<span class="sd">            w (matrix, optional): Weights of training data.</span>
+<span class="sd">            x_ind (matrix, optional): Locations of inducing points.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">w</span> <span class="o">=</span> <span class="n">_init_weights</span><span class="p">(</span><span class="n">w</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+
+        <span class="n">fs_post</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">f_noisy</span><span class="p">,</span> <span class="p">(</span><span class="n">xi</span><span class="p">,</span> <span class="n">yi</span><span class="p">,</span> <span class="n">wi</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">fs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">es</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">fs_noisy</span><span class="p">,</span> <span class="n">_per_output</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">w</span><span class="p">)</span>
+        <span class="p">):</span>
+            <span class="n">xwi</span> <span class="o">=</span> <span class="n">WeightedUnique</span><span class="p">(</span><span class="n">xi</span><span class="p">,</span> <span class="n">wi</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">x_ind</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">obs</span> <span class="o">=</span> <span class="n">Obs</span><span class="p">(</span><span class="n">f_noisy</span><span class="p">(</span><span class="n">xwi</span><span class="p">),</span> <span class="n">yi</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">obs</span> <span class="o">=</span> <span class="n">SparseObservations</span><span class="p">(</span><span class="n">f</span><span class="p">(</span><span class="n">x_ind</span><span class="p">),</span> <span class="n">e</span><span class="p">,</span> <span class="n">f</span><span class="p">(</span><span class="n">xwi</span><span class="p">),</span> <span class="n">yi</span><span class="p">)</span>
+
+            <span class="n">post</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">measure</span> <span class="o">|</span> <span class="n">obs</span>
+            <span class="n">fs_post</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">post</span><span class="p">(</span><span class="n">f</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">IGP</span><span class="p">(</span><span class="n">fs_post</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">noises</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="IGP.predict"><a class="viewcode-back" href="../../source/oilmm.oilmm.html#oilmm.oilmm.IGP.predict">[docs]</a>    <span class="k">def</span> <span class="nf">predict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">latent</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">return_variances</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Predict.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            x (matrix): Input locations to predict at.</span>
+<span class="sd">            latent (bool, optional): Predict noiseless processes. Defaults</span>
+<span class="sd">                to `False`.</span>
+<span class="sd">            return_variances (bool, optional): Return means and variances</span>
+<span class="sd">                instead. Defaults to `False`.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            tuple: Tuple containing means, lower 95% central credible bound,</span>
+<span class="sd">                and upper 95% central credible bound if `variances` is `False`,</span>
+<span class="sd">                and means and variances otherwise.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">latent</span><span class="p">:</span>
+            <span class="n">ps</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fs</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">ps</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fs_noisy</span>
+
+        <span class="n">means</span> <span class="o">=</span> <span class="n">B</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">B</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="n">B</span><span class="o">.</span><span class="n">dense</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">x</span><span class="p">)))</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">ps</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">variances</span> <span class="o">=</span> <span class="n">B</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span>
+            <span class="o">*</span><span class="p">[</span><span class="n">B</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="n">B</span><span class="o">.</span><span class="n">dense</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">kernel</span><span class="o">.</span><span class="n">elwise</span><span class="p">(</span><span class="n">x</span><span class="p">)))</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">ps</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">return_variances</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">means</span><span class="p">,</span> <span class="n">variances</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">error</span> <span class="o">=</span> <span class="mf">1.96</span> <span class="o">*</span> <span class="n">B</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">variances</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">means</span><span class="p">,</span> <span class="n">means</span> <span class="o">-</span> <span class="n">error</span><span class="p">,</span> <span class="n">means</span> <span class="o">+</span> <span class="n">error</span></div>
+
+<div class="viewcode-block" id="IGP.sample"><a class="viewcode-back" href="../../source/oilmm.oilmm.html#oilmm.oilmm.IGP.sample">[docs]</a>    <span class="k">def</span> <span class="nf">sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">latent</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Sample from the model.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            x (matrix): Locations to sample at.</span>
+<span class="sd">            latent (bool, optional): Sample noiseless processes. Defaults</span>
+<span class="sd">                to `False`.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            matrix: Sample.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">latent</span><span class="p">:</span>
+            <span class="n">processes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fs</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">processes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fs_noisy</span>
+
+        <span class="k">return</span> <span class="n">B</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">p</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">sample</span><span class="p">()</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">processes</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="OILMM"><a class="viewcode-back" href="../../source/oilmm.oilmm.html#oilmm.oilmm.OILMM">[docs]</a><span class="k">class</span> <span class="nc">OILMM</span><span class="p">(</span><span class="n">metaclass</span><span class="o">=</span><span class="n">Referentiable</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Orthogonal Instantaneous Linear Mixing model.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        kernels (list[:class:`stheno.Kernel`]) Kernels.</span>
+<span class="sd">        u (matrix): Orthogonal part of the mixing matrix.</span>
+<span class="sd">        s_sqrt (matrix): Diagonal part of the mixing matrix.</span>
+<span class="sd">        noise_obs (scalar): Observation noise.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_dispatch</span> <span class="o">=</span> <span class="n">Dispatcher</span><span class="p">(</span><span class="n">in_class</span><span class="o">=</span><span class="n">Self</span><span class="p">)</span>
+
+    <span class="nd">@_dispatch</span><span class="p">(</span><span class="nb">object</span><span class="p">,</span> <span class="n">AbstractMatrix</span><span class="p">,</span> <span class="n">AbstractMatrix</span><span class="p">,</span> <span class="n">B</span><span class="o">.</span><span class="n">Numeric</span><span class="p">)</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">s_sqrt</span><span class="p">,</span> <span class="n">noise_obs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="n">model</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">u</span> <span class="o">=</span> <span class="n">u</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">s_sqrt</span> <span class="o">=</span> <span class="n">s_sqrt</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">h</span> <span class="o">=</span> <span class="n">u</span> <span class="o">@</span> <span class="n">s_sqrt</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">noise_obs</span> <span class="o">=</span> <span class="n">noise_obs</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">p</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">m</span> <span class="o">=</span> <span class="n">B</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="n">u</span><span class="p">)</span>
+
+    <span class="nd">@_dispatch</span><span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="n">AbstractMatrix</span><span class="p">,</span> <span class="n">AbstractMatrix</span><span class="p">,</span> <span class="n">B</span><span class="o">.</span><span class="n">Numeric</span><span class="p">,</span> <span class="n">B</span><span class="o">.</span><span class="n">Numeric</span><span class="p">)</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">kernels</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">s_sqrt</span><span class="p">,</span> <span class="n">noise_obs</span><span class="p">,</span> <span class="n">noises_latent</span><span class="p">):</span>
+        <span class="n">OILMM</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">IGP</span><span class="p">(</span><span class="n">kernels</span><span class="p">,</span> <span class="n">noises_latent</span><span class="p">),</span> <span class="n">u</span><span class="p">,</span> <span class="n">s_sqrt</span><span class="p">,</span> <span class="n">noise_obs</span><span class="p">)</span>
+
+<div class="viewcode-block" id="OILMM.logpdf"><a class="viewcode-back" href="../../source/oilmm.oilmm.html#oilmm.oilmm.OILMM.logpdf">[docs]</a>    <span class="k">def</span> <span class="nf">logpdf</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">x_ind</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Compute the logpdf.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            x (matrix): Locations of training data.</span>
+<span class="sd">            y (matrix): Observations of training data.</span>
+<span class="sd">            x_ind (matrix, optional): Locations of inducing points.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            scalar: Logpdf.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">proj_x</span><span class="p">,</span> <span class="n">proj_y</span><span class="p">,</span> <span class="n">proj_w</span><span class="p">,</span> <span class="n">reg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">project</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">logpdf</span><span class="p">(</span><span class="n">proj_x</span><span class="p">,</span> <span class="n">proj_y</span><span class="p">,</span> <span class="n">proj_w</span><span class="p">,</span> <span class="n">x_ind</span><span class="o">=</span><span class="n">x_ind</span><span class="p">)</span> <span class="o">-</span> <span class="n">reg</span></div>
+
+<div class="viewcode-block" id="OILMM.condition"><a class="viewcode-back" href="../../source/oilmm.oilmm.html#oilmm.oilmm.OILMM.condition">[docs]</a>    <span class="k">def</span> <span class="nf">condition</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">x_ind</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Condition the model.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            x (matrix): Locations of training data.</span>
+<span class="sd">            y (matrix): Observations of training data.</span>
+<span class="sd">            x_ind (matrix, optional): Locations of inducing points.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">p</span> <span class="o">=</span> <span class="n">B</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="n">y</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">proj_x</span><span class="p">,</span> <span class="n">proj_y</span><span class="p">,</span> <span class="n">proj_w</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">project</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">OILMM</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">condition</span><span class="p">(</span><span class="n">proj_x</span><span class="p">,</span> <span class="n">proj_y</span><span class="p">,</span> <span class="n">proj_w</span><span class="p">,</span> <span class="n">x_ind</span><span class="o">=</span><span class="n">x_ind</span><span class="p">),</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">u</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">s_sqrt</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">noise_obs</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+<div class="viewcode-block" id="OILMM.project"><a class="viewcode-back" href="../../source/oilmm.oilmm.html#oilmm.oilmm.OILMM.project">[docs]</a>    <span class="k">def</span> <span class="nf">project</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Project data.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            x (matrix): Locations of data.</span>
+<span class="sd">            y (matrix): Observations of data.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            tuple: Tuple containing the locations of the projection,</span>
+<span class="sd">                the projection, weights associated with the projection, and</span>
+<span class="sd">                a regularisation term.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="n">B</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="n">x</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">available</span> <span class="o">=</span> <span class="o">~</span><span class="n">B</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">B</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(</span><span class="n">y</span><span class="p">))</span>
+
+        <span class="c1"># Optimise the case where all data is available.</span>
+        <span class="k">if</span> <span class="n">B</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">available</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_project_pattern</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="p">(</span><span class="kc">True</span><span class="p">,)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">p</span><span class="p">)</span>
+
+        <span class="c1"># Extract patterns.</span>
+        <span class="n">patterns</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">tuple</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">available</span><span class="p">))))</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">patterns</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">30</span><span class="p">:</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Detected </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">patterns</span><span class="p">)</span><span class="si">}</span><span class="s2"> patterns, which is more &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;than 30 and can be slow.&quot;</span><span class="p">,</span>
+                <span class="n">category</span><span class="o">=</span><span class="ne">UserWarning</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="c1"># Per pattern, find data points that belong to it.</span>
+        <span class="n">patterns_inds</span> <span class="o">=</span> <span class="p">[[]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">patterns</span><span class="p">))]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+            <span class="n">patterns_inds</span><span class="p">[</span><span class="n">patterns</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">available</span><span class="p">[</span><span class="n">i</span><span class="p">]))]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+
+        <span class="c1"># Per pattern, perform the projection.</span>
+        <span class="n">proj_xs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">proj_ys</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">proj_ws</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">total_reg</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="k">for</span> <span class="n">pattern</span><span class="p">,</span> <span class="n">pattern_inds</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">patterns</span><span class="p">,</span> <span class="n">patterns_inds</span><span class="p">):</span>
+            <span class="n">proj_x</span><span class="p">,</span> <span class="n">proj_y</span><span class="p">,</span> <span class="n">proj_w</span><span class="p">,</span> <span class="n">reg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_project_pattern</span><span class="p">(</span>
+                <span class="n">B</span><span class="o">.</span><span class="n">take</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">pattern_inds</span><span class="p">),</span> <span class="n">B</span><span class="o">.</span><span class="n">take</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">pattern_inds</span><span class="p">),</span> <span class="n">pattern</span>
+            <span class="p">)</span>
+
+            <span class="n">proj_xs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">proj_x</span><span class="p">)</span>
+            <span class="n">proj_ys</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">proj_y</span><span class="p">)</span>
+            <span class="n">proj_ws</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">proj_w</span><span class="p">)</span>
+            <span class="n">total_reg</span> <span class="o">=</span> <span class="n">total_reg</span> <span class="o">+</span> <span class="n">reg</span>
+
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="n">B</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span><span class="o">*</span><span class="n">proj_xs</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span>
+            <span class="n">B</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span><span class="o">*</span><span class="n">proj_ys</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span>
+            <span class="n">B</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span><span class="o">*</span><span class="n">proj_ws</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span>
+            <span class="n">total_reg</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_project_pattern</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">pattern</span><span class="p">):</span>
+        <span class="c1"># Check whether all data is available.</span>
+        <span class="n">no_missing</span> <span class="o">=</span> <span class="nb">all</span><span class="p">(</span><span class="n">pattern</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">no_missing</span><span class="p">:</span>
+            <span class="c1"># All data is available. Nothing to be done.</span>
+            <span class="n">u</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">u</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Data is missing. Pick the available entries.</span>
+            <span class="n">y</span> <span class="o">=</span> <span class="n">B</span><span class="o">.</span><span class="n">take</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">pattern</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+            <span class="c1"># Ensure that `u` remains a structured matrix.</span>
+            <span class="n">u</span> <span class="o">=</span> <span class="n">Dense</span><span class="p">(</span><span class="n">B</span><span class="o">.</span><span class="n">take</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">u</span><span class="p">,</span> <span class="n">pattern</span><span class="p">))</span>
+
+        <span class="c1"># Get number of data points and outputs in this part of the data.</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="n">B</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="n">x</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">pattern</span><span class="p">)</span>
+
+        <span class="c1"># Perform projection.</span>
+        <span class="n">proj_y_partial</span> <span class="o">=</span> <span class="n">B</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">B</span><span class="o">.</span><span class="n">pinv</span><span class="p">(</span><span class="n">u</span><span class="p">),</span> <span class="n">tr_b</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">proj_y</span> <span class="o">=</span> <span class="n">B</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">proj_y_partial</span><span class="p">,</span> <span class="n">B</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">s_sqrt</span><span class="p">),</span> <span class="n">tr_b</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="c1"># Compute projected noise.</span>
+        <span class="n">u_square</span> <span class="o">=</span> <span class="n">B</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">tr_a</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">proj_noise</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">noise_obs</span> <span class="o">/</span> <span class="n">B</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">s_sqrt</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">B</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="n">B</span><span class="o">.</span><span class="n">pd_inv</span><span class="p">(</span><span class="n">u_square</span><span class="p">))</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Convert projected noise to weights.</span>
+        <span class="n">noises</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">noises</span>
+        <span class="n">weights</span> <span class="o">=</span> <span class="n">noises</span> <span class="o">/</span> <span class="p">(</span><span class="n">noises</span> <span class="o">+</span> <span class="n">proj_noise</span><span class="p">)</span>
+        <span class="n">proj_w</span> <span class="o">=</span> <span class="n">B</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">B</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="n">weights</span><span class="p">),</span> <span class="n">n</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">m</span><span class="p">)</span> <span class="o">*</span> <span class="n">weights</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]</span>
+
+        <span class="c1"># Compute Frobenius norm.</span>
+        <span class="n">frob</span> <span class="o">=</span> <span class="n">B</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">y</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="n">frob</span> <span class="o">=</span> <span class="n">frob</span> <span class="o">-</span> <span class="n">B</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">proj_y_partial</span> <span class="o">*</span> <span class="n">B</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">proj_y_partial</span><span class="p">,</span> <span class="n">u_square</span><span class="p">))</span>
+
+        <span class="c1"># Compute regularising term.</span>
+        <span class="n">reg</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span>
+            <span class="n">n</span> <span class="o">*</span> <span class="p">(</span><span class="n">p</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">m</span><span class="p">)</span> <span class="o">*</span> <span class="n">B</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">B</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise_obs</span><span class="p">)</span>
+            <span class="o">+</span> <span class="n">frob</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise_obs</span>
+            <span class="o">+</span> <span class="n">n</span> <span class="o">*</span> <span class="n">B</span><span class="o">.</span><span class="n">logdet</span><span class="p">(</span><span class="n">B</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">tr_a</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+            <span class="o">+</span> <span class="n">n</span> <span class="o">*</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">B</span><span class="o">.</span><span class="n">logdet</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">s_sqrt</span><span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">x</span><span class="p">,</span> <span class="n">proj_y</span><span class="p">,</span> <span class="n">proj_w</span><span class="p">,</span> <span class="n">reg</span>
+
+<div class="viewcode-block" id="OILMM.predict"><a class="viewcode-back" href="../../source/oilmm.oilmm.html#oilmm.oilmm.OILMM.predict">[docs]</a>    <span class="k">def</span> <span class="nf">predict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">latent</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">return_variances</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Predict.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            x (matrix): Input locations to predict at.</span>
+<span class="sd">            latent (bool, optional): Predict noiseless processes. Defaults</span>
+<span class="sd">                to `False`.</span>
+<span class="sd">            return_variances (bool, optional): Return means and variances</span>
+<span class="sd">                instead. Defaults to `False`.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            tuple[matrix]: Tuple containing means, lower 95% central credible</span>
+<span class="sd">                bound, and upper 95% central credible bound if `variances` is</span>
+<span class="sd">                `False`, and means and variances otherwise.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">means</span><span class="p">,</span> <span class="n">variances</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">latent</span><span class="o">=</span><span class="n">latent</span><span class="p">,</span> <span class="n">return_variances</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="c1"># Pull means and variances through mixing matrix.</span>
+        <span class="n">means</span> <span class="o">=</span> <span class="n">B</span><span class="o">.</span><span class="n">dense</span><span class="p">(</span><span class="n">B</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">means</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">,</span> <span class="n">tr_b</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+        <span class="n">variances</span> <span class="o">=</span> <span class="n">B</span><span class="o">.</span><span class="n">dense</span><span class="p">(</span><span class="n">B</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">variances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">h</span> <span class="o">**</span> <span class="mi">2</span><span class="p">,</span> <span class="n">tr_b</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">latent</span><span class="p">:</span>
+            <span class="n">variances</span> <span class="o">=</span> <span class="n">variances</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise_obs</span>
+
+        <span class="k">if</span> <span class="n">return_variances</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">means</span><span class="p">,</span> <span class="n">variances</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">error</span> <span class="o">=</span> <span class="mf">1.96</span> <span class="o">*</span> <span class="n">B</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">variances</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">means</span><span class="p">,</span> <span class="n">means</span> <span class="o">-</span> <span class="n">error</span><span class="p">,</span> <span class="n">means</span> <span class="o">+</span> <span class="n">error</span></div>
+
+<div class="viewcode-block" id="OILMM.sample"><a class="viewcode-back" href="../../source/oilmm.oilmm.html#oilmm.oilmm.OILMM.sample">[docs]</a>    <span class="k">def</span> <span class="nf">sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">latent</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Sample from the model.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            x (matrix): Locations to sample at.</span>
+<span class="sd">            latent (bool, optional): Sample noiseless processes. Defaults</span>
+<span class="sd">                to `False`.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            matrix: Sample.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">sample</span> <span class="o">=</span> <span class="n">B</span><span class="o">.</span><span class="n">dense</span><span class="p">(</span>
+            <span class="n">B</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">latent</span><span class="o">=</span><span class="n">latent</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">,</span> <span class="n">tr_b</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">latent</span><span class="p">:</span>
+            <span class="n">sample</span> <span class="o">=</span> <span class="n">sample</span> <span class="o">+</span> <span class="n">B</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">noise_obs</span><span class="p">)</span> <span class="o">*</span> <span class="n">B</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">sample</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">sample</span></div></div>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        
+        &copy; Copyright 2019, Wessel Bruinsma
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

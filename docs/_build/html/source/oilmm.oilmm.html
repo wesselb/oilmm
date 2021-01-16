@@ -1,0 +1,453 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>oilmm.oilmm module &mdash; oilmm 0.1.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="oilmm.util module" href="oilmm.util.html" />
+    <link rel="prev" title="oilmm.ilmm module" href="oilmm.ilmm.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home" alt="Documentation Home"> oilmm
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.1
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../readme.html">OILMM</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../api.html">Application Programming Interface</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="oilmm.ilmm.html">oilmm.ilmm module</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">oilmm.oilmm module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="oilmm.util.html">oilmm.util module</a></li>
+</ul>
+</li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">oilmm</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+        
+          <li><a href="../api.html">Application Programming Interface</a> &raquo;</li>
+        
+      <li>oilmm.oilmm module</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/source/oilmm.oilmm.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="module-oilmm.oilmm">
+<span id="oilmm-oilmm-module"></span><h1>oilmm.oilmm module<a class="headerlink" href="#module-oilmm.oilmm" title="Permalink to this headline">¶</a></h1>
+<dl class="py class">
+<dt id="oilmm.oilmm.IGP">
+<em class="property">class </em><code class="sig-prename descclassname">oilmm.oilmm.</code><code class="sig-name descname">IGP</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kw_args</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/oilmm/oilmm.html#IGP"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#oilmm.oilmm.IGP" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Independent GPs.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>kernels</strong> (list[<code class="xref py py-class docutils literal notranslate"><span class="pre">stheno.Kernel</span></code>]) – Kernels.</p></li>
+<li><p><strong>noises</strong> (<em>vector</em>) – Observation noises.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt id="oilmm.oilmm.IGP.condition">
+<code class="sig-name descname">condition</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">x</span></em>, <em class="sig-param"><span class="n">y</span></em>, <em class="sig-param"><span class="n">w</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">x_ind</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/oilmm/oilmm.html#IGP.condition"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#oilmm.oilmm.IGP.condition" title="Permalink to this definition">¶</a></dt>
+<dd><p>Condition the model.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x</strong> (<em>matrix</em>) – Locations of training data.</p></li>
+<li><p><strong>y</strong> (<em>matrix</em>) – Observations of training data.</p></li>
+<li><p><strong>w</strong> (<em>matrix</em><em>, </em><em>optional</em>) – Weights of training data.</p></li>
+<li><p><strong>x_ind</strong> (<em>matrix</em><em>, </em><em>optional</em>) – Locations of inducing points.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="oilmm.oilmm.IGP.logpdf">
+<code class="sig-name descname">logpdf</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">x</span></em>, <em class="sig-param"><span class="n">y</span></em>, <em class="sig-param"><span class="n">w</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">x_ind</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/oilmm/oilmm.html#IGP.logpdf"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#oilmm.oilmm.IGP.logpdf" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute the logpdf.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x</strong> (<em>matrix</em>) – Locations of training data.</p></li>
+<li><p><strong>y</strong> (<em>matrix</em>) – Observations of training data.</p></li>
+<li><p><strong>w</strong> (<em>matrix</em><em>, </em><em>optional</em>) – Weights of training data.</p></li>
+<li><p><strong>x_ind</strong> (<em>matrix</em><em>, </em><em>optional</em>) – Locations of inducing points.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Logpdf.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>scalar</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="oilmm.oilmm.IGP.predict">
+<code class="sig-name descname">predict</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">x</span></em>, <em class="sig-param"><span class="n">latent</span><span class="o">=</span><span class="default_value">False</span></em>, <em class="sig-param"><span class="n">return_variances</span><span class="o">=</span><span class="default_value">False</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/oilmm/oilmm.html#IGP.predict"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#oilmm.oilmm.IGP.predict" title="Permalink to this definition">¶</a></dt>
+<dd><p>Predict.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x</strong> (<em>matrix</em>) – Input locations to predict at.</p></li>
+<li><p><strong>latent</strong> (<em>bool</em><em>, </em><em>optional</em>) – Predict noiseless processes. Defaults
+to <cite>False</cite>.</p></li>
+<li><p><strong>return_variances</strong> (<em>bool</em><em>, </em><em>optional</em>) – Return means and variances
+instead. Defaults to <cite>False</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><dl class="simple">
+<dt>Tuple containing means, lower 95% central credible bound,</dt><dd><p>and upper 95% central credible bound if <cite>variances</cite> is <cite>False</cite>,
+and means and variances otherwise.</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>tuple</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="oilmm.oilmm.IGP.sample">
+<code class="sig-name descname">sample</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">x</span></em>, <em class="sig-param"><span class="n">latent</span><span class="o">=</span><span class="default_value">False</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/oilmm/oilmm.html#IGP.sample"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#oilmm.oilmm.IGP.sample" title="Permalink to this definition">¶</a></dt>
+<dd><p>Sample from the model.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x</strong> (<em>matrix</em>) – Locations to sample at.</p></li>
+<li><p><strong>latent</strong> (<em>bool</em><em>, </em><em>optional</em>) – Sample noiseless processes. Defaults
+to <cite>False</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Sample.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>matrix</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt id="oilmm.oilmm.OILMM">
+<em class="property">class </em><code class="sig-prename descclassname">oilmm.oilmm.</code><code class="sig-name descname">OILMM</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kw_args</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/oilmm/oilmm.html#OILMM"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#oilmm.oilmm.OILMM" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Orthogonal Instantaneous Linear Mixing model.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>kernels</strong> (list[<code class="xref py py-class docutils literal notranslate"><span class="pre">stheno.Kernel</span></code>]) – </p></li>
+<li><p><strong>u</strong> (<em>matrix</em>) – Orthogonal part of the mixing matrix.</p></li>
+<li><p><strong>s_sqrt</strong> (<em>matrix</em>) – Diagonal part of the mixing matrix.</p></li>
+<li><p><strong>noise_obs</strong> (<em>scalar</em>) – Observation noise.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt id="oilmm.oilmm.OILMM.condition">
+<code class="sig-name descname">condition</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">x</span></em>, <em class="sig-param"><span class="n">y</span></em>, <em class="sig-param"><span class="n">x_ind</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/oilmm/oilmm.html#OILMM.condition"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#oilmm.oilmm.OILMM.condition" title="Permalink to this definition">¶</a></dt>
+<dd><p>Condition the model.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x</strong> (<em>matrix</em>) – Locations of training data.</p></li>
+<li><p><strong>y</strong> (<em>matrix</em>) – Observations of training data.</p></li>
+<li><p><strong>x_ind</strong> (<em>matrix</em><em>, </em><em>optional</em>) – Locations of inducing points.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="oilmm.oilmm.OILMM.logpdf">
+<code class="sig-name descname">logpdf</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">x</span></em>, <em class="sig-param"><span class="n">y</span></em>, <em class="sig-param"><span class="n">x_ind</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/oilmm/oilmm.html#OILMM.logpdf"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#oilmm.oilmm.OILMM.logpdf" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute the logpdf.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x</strong> (<em>matrix</em>) – Locations of training data.</p></li>
+<li><p><strong>y</strong> (<em>matrix</em>) – Observations of training data.</p></li>
+<li><p><strong>x_ind</strong> (<em>matrix</em><em>, </em><em>optional</em>) – Locations of inducing points.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Logpdf.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>scalar</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="oilmm.oilmm.OILMM.predict">
+<code class="sig-name descname">predict</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">x</span></em>, <em class="sig-param"><span class="n">latent</span><span class="o">=</span><span class="default_value">False</span></em>, <em class="sig-param"><span class="n">return_variances</span><span class="o">=</span><span class="default_value">False</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/oilmm/oilmm.html#OILMM.predict"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#oilmm.oilmm.OILMM.predict" title="Permalink to this definition">¶</a></dt>
+<dd><p>Predict.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x</strong> (<em>matrix</em>) – Input locations to predict at.</p></li>
+<li><p><strong>latent</strong> (<em>bool</em><em>, </em><em>optional</em>) – Predict noiseless processes. Defaults
+to <cite>False</cite>.</p></li>
+<li><p><strong>return_variances</strong> (<em>bool</em><em>, </em><em>optional</em>) – Return means and variances
+instead. Defaults to <cite>False</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><dl class="simple">
+<dt>Tuple containing means, lower 95% central credible</dt><dd><p>bound, and upper 95% central credible bound if <cite>variances</cite> is
+<cite>False</cite>, and means and variances otherwise.</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>tuple[matrix]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="oilmm.oilmm.OILMM.project">
+<code class="sig-name descname">project</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">x</span></em>, <em class="sig-param"><span class="n">y</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/oilmm/oilmm.html#OILMM.project"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#oilmm.oilmm.OILMM.project" title="Permalink to this definition">¶</a></dt>
+<dd><p>Project data.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x</strong> (<em>matrix</em>) – Locations of data.</p></li>
+<li><p><strong>y</strong> (<em>matrix</em>) – Observations of data.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><dl class="simple">
+<dt>Tuple containing the locations of the projection,</dt><dd><p>the projection, weights associated with the projection, and
+a regularisation term.</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>tuple</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="oilmm.oilmm.OILMM.sample">
+<code class="sig-name descname">sample</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">x</span></em>, <em class="sig-param"><span class="n">latent</span><span class="o">=</span><span class="default_value">False</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/oilmm/oilmm.html#OILMM.sample"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#oilmm.oilmm.OILMM.sample" title="Permalink to this definition">¶</a></dt>
+<dd><p>Sample from the model.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x</strong> (<em>matrix</em>) – Locations to sample at.</p></li>
+<li><p><strong>latent</strong> (<em>bool</em><em>, </em><em>optional</em>) – Sample noiseless processes. Defaults
+to <cite>False</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Sample.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>matrix</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="oilmm.util.html" class="btn btn-neutral float-right" title="oilmm.util module" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="oilmm.ilmm.html" class="btn btn-neutral float-left" title="oilmm.ilmm module" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        
+        &copy; Copyright 2019, Wessel Bruinsma
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>
