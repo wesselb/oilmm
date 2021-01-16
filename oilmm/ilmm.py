@@ -1,9 +1,9 @@
 from lab import B
 from matrix import AbstractMatrix
-from plum import Dispatcher, Referentiable, Self
-from stheno import GP, Delta, Graph, Obs
+from plum import Dispatcher, Referentiable, Self, List
+from stheno import Measure, GP, Delta, Obs, Kernel
 
-__all__ = ['ILMMPP']
+__all__ = ["ILMMPP"]
 
 
 def _per_output(x, y):
@@ -37,35 +37,39 @@ class ILMMPP(metaclass=Referentiable):
         noise_obs (scalar): Observation noise. One.
         noises_latent (vector): Latent noises.
     """
+
     _dispatch = Dispatcher(in_class=Self)
 
-    @_dispatch(Graph, list, AbstractMatrix, B.Numeric, B.Numeric)
-    def __init__(self, graph, xs, h, noise_obs, noises_latent):
-        self.graph = graph
+    @_dispatch(Measure, List(GP), AbstractMatrix, B.Numeric, B.Numeric)
+    def __init__(self, measure, xs, h, noise_obs, noises_latent):
+        self.measure = measure
         self.xs = xs
         self.h = h
         self.noise_obs = noise_obs
         self.noises_latent = noises_latent
 
         # Create noisy latent processes.
-        xs_noisy = [x + GP(self.noises_latent[i] * Delta(), graph=self.graph)
-                    for i, x in enumerate(xs)]
+        xs_noisy = [
+            x + GP(self.noises_latent[i] * Delta(), measure=self.measure)
+            for i, x in enumerate(xs)
+        ]
 
         # Create noiseless observed processes.
         self.fs = _matmul(self.h, self.xs)
 
         # Create observed processes.
         fs_noisy = _matmul(self.h, xs_noisy)
-        self.ys = [f + GP(self.noise_obs * Delta(), graph=self.graph)
-                   for f in fs_noisy]
+        self.ys = [
+            f + GP(self.noise_obs * Delta(), measure=self.measure) for f in fs_noisy
+        ]
 
-    @_dispatch(list, AbstractMatrix, B.Numeric, B.Numeric)
+    @_dispatch(List(Kernel), AbstractMatrix, B.Numeric, B.Numeric)
     def __init__(self, kernels, h, noise_obs, noises_latent):
-        graph = Graph()
+        measure = Measure()
 
         # Create latent processes.
-        xs = [GP(k, graph=graph) for k in kernels]
-        ILMMPP.__init__(self, graph, xs, h, noise_obs, noises_latent)
+        xs = [GP(k, measure=measure) for k in kernels]
+        ILMMPP.__init__(self, measure, xs, h, noise_obs, noises_latent)
 
     def logpdf(self, x, y):
         """Compute the logpdf of data.
@@ -78,7 +82,7 @@ class ILMMPP(metaclass=Referentiable):
             tensor: Logpdf of data.
         """
         obs = Obs(*[(self.ys[i](x), y) for x, i, y in _per_output(x, y)])
-        return self.graph.logpdf(obs)
+        return self.measure.logpdf(obs)
 
     def condition(self, x, y):
         """Condition on data.
@@ -88,11 +92,10 @@ class ILMMPP(metaclass=Referentiable):
             y (tensor): Observed values.
         """
         obs = Obs(*[(self.ys[i](x), y) for x, i, y in _per_output(x, y)])
-        return ILMMPP(self.graph,
-                      [x | obs for x in self.xs],
-                      self.h,
-                      self.noise_obs,
-                      self.noises_latent)
+        post = self.measure | obs
+        return ILMMPP(
+            post, [post(x) for x in self.xs], self.h, self.noise_obs, self.noises_latent
+        )
 
     def predict(self, x, latent=False):
         """Compute marginals.
@@ -112,9 +115,11 @@ class ILMMPP(metaclass=Referentiable):
             ps = self.ys
 
         means, lowers, uppers = zip(*[p(x).marginals() for p in ps])
-        return B.stack(*means, axis=1), \
-               B.stack(*lowers, axis=1), \
-               B.stack(*uppers, axis=1)
+        return (
+            B.stack(*means, axis=1),
+            B.stack(*lowers, axis=1),
+            B.stack(*uppers, axis=1),
+        )
 
     def sample(self, x, latent=False):
         """Sample data.
@@ -129,5 +134,5 @@ class ILMMPP(metaclass=Referentiable):
         else:
             ps = self.ys
 
-        samples = self.graph.sample(*[p(x) for p in ps])
+        samples = self.measure.sample(*[p(x) for p in ps])
         return B.concat(*samples, axis=1)

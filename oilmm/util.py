@@ -2,7 +2,7 @@ import lab as B
 from matrix import AbstractMatrix, Kronecker
 import numpy as np
 
-__all__ = ['Normaliser']
+__all__ = ["Normaliser"]
 
 
 def _to_multiarg(f):
@@ -55,6 +55,20 @@ class Normaliser:
         return y * self.scale + self.mean
 
     @_to_multiarg
+    def unnormalise_variance(self, y):
+        """Undo normalisation for a variance.
+
+        Accepts multiple arguments.
+
+        Args:
+            y (matrix): Variances to unnormalise.
+
+        Returns:
+            matrix: Unnormalised variance.
+        """
+        return y * self.scale ** 2
+
+    @_to_multiarg
     def normalise_logdet(self, y):
         """Compute the log-determinant of the Jacobian of the normalisation.
 
@@ -67,27 +81,6 @@ class Normaliser:
             scalar: Log-determinant.
         """
         return -B.shape(y)[0] * B.sum(B.log(self.scale))
-
-
-@B.dispatch(AbstractMatrix)
-def pd_inv(a):
-    """Compute the inverse of a positive-definite matrix.
-
-    Args:
-        a (matrix): Matrix to compute inverse of.
-
-    Returns:
-        matrix: Inverse of `a`.
-    """
-    return B.cholsolve(B.chol(a), B.eye(a))
-
-
-@B.dispatch(Kronecker)
-def pd_inv(a):
-    return Kronecker(B.pd_inv(a.left), B.pd_inv(a.right))
-
-
-B.pd_inv = pd_inv
 
 
 @B.dispatch(AbstractMatrix)

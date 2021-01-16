@@ -5,7 +5,7 @@ from matrix import Dense
 from stheno import EQ
 
 from oilmm.ilmm import ILMMPP
-from .util import allclose, approx
+from .util import approx
 
 
 @pytest.fixture()
@@ -15,8 +15,8 @@ def construct_ilmm():
     h = Dense(B.randn(3, 2))
 
     def construct_ilmm(noise_amplification=1):
-        noise_obs = .1 * noise_amplification
-        noises_latent = np.array([.1, .2]) * noise_amplification
+        noise_obs = 0.1 * noise_amplification
+        noises_latent = np.array([0.1, 0.2]) * noise_amplification
         return ILMMPP(kernels, h, noise_obs, noises_latent)
 
     return construct_ilmm
@@ -41,13 +41,11 @@ def test_missing_data(construct_ilmm, x):
     # Throw away an entire time point and check correctness.
     y2 = y.copy()
     y2[1, :] = np.nan
-    allclose(ilmm.logpdf(x[[0, 2, 3, 4]], y[[0, 2, 3, 4]]),
-             ilmm.logpdf(x, y2))
+    approx(ilmm.logpdf(x[[0, 2, 3, 4]], y[[0, 2, 3, 4]]), ilmm.logpdf(x, y2))
 
     # Check LML after conditioning.
     ilmm = ilmm.condition(x, y2)
-    allclose(ilmm.logpdf(x[[0, 2, 3, 4]], y[[0, 2, 3, 4]]),
-             ilmm.logpdf(x, y2))
+    approx(ilmm.logpdf(x[[0, 2, 3, 4]], y[[0, 2, 3, 4]]), ilmm.logpdf(x, y2))
 
 
 def test_sample_noiseless(construct_ilmm, x):
@@ -74,7 +72,7 @@ def test_predict_noiseless(construct_ilmm, x):
     means, lowers, uppers = ilmm.predict(x, latent=True)
 
     # Test that predictions match sample and have low uncertainty.
-    approx(means, y, decimal=3)
+    approx(means, y, atol=1e-3)
     assert B.all(uppers - lowers < 1e-4)
 
 

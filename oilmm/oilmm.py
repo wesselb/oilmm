@@ -2,10 +2,10 @@ import warnings
 
 import lab as B
 from matrix import AbstractMatrix, Dense
-from plum import Dispatcher, Self, Referentiable
-from stheno import Graph, GP, Delta, WeightedUnique, Obs, SparseObservations
+from plum import Dispatcher, Self, Referentiable, List
+from stheno import GP, Delta, WeightedUnique, Obs, SparseObservations, Kernel
 
-__all__ = ['OILMM', 'IGP']
+__all__ = ["OILMM", "IGP"]
 
 
 def _per_output(x, y, w):
@@ -35,22 +35,23 @@ class IGP(metaclass=Referentiable):
         kernels (list[:class:`stheno.Kernel`]): Kernels.
         noises (vector): Observation noises.
     """
+
     _dispatch = Dispatcher(in_class=Self)
 
-    @_dispatch(list, B.Numeric)
+    @_dispatch(List(Kernel), B.Numeric)
     def __init__(self, kernels, noises):
-        graph = Graph()
-        fs = [GP(kernel, graph=graph) for kernel in kernels]
-        IGP.__init__(self, graph, fs, noises)
+        fs = [GP(k) for k in kernels]
+        IGP.__init__(self, fs, noises)
 
-    @_dispatch(Graph, list, B.Numeric)
-    def __init__(self, graph, fs, noises):
-        self.graph = graph
+    @_dispatch(List(GP), B.Numeric)
+    def __init__(self, fs, noises):
         self.fs = fs
         self.noises = noises
 
-        self.es = [GP(noises[i] * Delta(), graph=graph)
-                   for i in range(B.shape(noises)[0])]
+        self.es = [
+            GP(noises[i] * Delta(), measure=self.fs[i].measure)
+            for i in range(B.shape(noises)[0])
+        ]
         self.fs_noisy = [f + e for f, e in zip(self.fs, self.es)]
 
     def logpdf(self, x, y, w=None, x_ind=None):
@@ -69,17 +70,16 @@ class IGP(metaclass=Referentiable):
 
         logpdf = 0
 
-        for f, e, f_noisy, (xi, yi, wi) in zip(self.fs,
-                                               self.es,
-                                               self.fs_noisy,
-                                               _per_output(x, y, w)):
+        for f, e, f_noisy, (xi, yi, wi) in zip(
+            self.fs, self.es, self.fs_noisy, _per_output(x, y, w)
+        ):
             xwi = WeightedUnique(xi, wi)
 
             if x_ind is None:
                 logpdf = logpdf + f_noisy(xwi).logpdf(yi)
             else:
                 obs = SparseObservations(f(x_ind), e, f(xwi), yi)
-                logpdf = logpdf + obs.elbo
+                logpdf = logpdf + obs.elbo(f.measure)
 
         return logpdf
 
@@ -95,19 +95,20 @@ class IGP(metaclass=Referentiable):
         w = _init_weights(w, y)
 
         fs_post = []
-        for f, e, f_noisy, (xi, yi, wi) in zip(self.fs,
-                                               self.es,
-                                               self.fs_noisy,
-                                               _per_output(x, y, w)):
+        for f, e, f_noisy, (xi, yi, wi) in zip(
+            self.fs, self.es, self.fs_noisy, _per_output(x, y, w)
+        ):
             xwi = WeightedUnique(xi, wi)
 
             if x_ind is None:
                 obs = Obs(f_noisy(xwi), yi)
             else:
                 obs = SparseObservations(f(x_ind), e, f(xwi), yi)
-            fs_post.append(f | obs)
 
-        return IGP(self.graph, fs_post, self.noises)
+            post = f.measure | obs
+            fs_post.append(post(f))
+
+        return IGP(fs_post, self.noises)
 
     def predict(self, x, latent=False, return_variances=False):
         """Predict.
@@ -129,17 +130,15 @@ class IGP(metaclass=Referentiable):
         else:
             ps = self.fs_noisy
 
-        means = B.stack(*[B.squeeze(B.dense(p.mean(x)))
-                          for p in ps],
-                        axis=1)
-        variances = B.stack(*[B.squeeze(B.dense(p.kernel.elwise(x)))
-                              for p in ps],
-                            axis=1)
+        means = B.stack(*[B.squeeze(B.dense(p.mean(x))) for p in ps], axis=1)
+        variances = B.stack(
+            *[B.squeeze(B.dense(p.kernel.elwise(x))) for p in ps], axis=1
+        )
 
         if return_variances:
             return means, variances
         else:
-            error = 2 * B.sqrt(variances)
+            error = 1.96 * B.sqrt(variances)
             return means, means - error, means + error
 
     def sample(self, x, latent=False):
@@ -171,6 +170,7 @@ class OILMM(metaclass=Referentiable):
         noise_obs (scalar): Observation noise.
 
     """
+
     _dispatch = Dispatcher(in_class=Self)
 
     @_dispatch(object, AbstractMatrix, AbstractMatrix, B.Numeric)
@@ -211,10 +211,12 @@ class OILMM(metaclass=Referentiable):
         """
         self.p = B.shape(y)[1]
         proj_x, proj_y, proj_w, _ = self.project(x, y)
-        return OILMM(self.model.condition(proj_x, proj_y, proj_w, x_ind=x_ind),
-                     self.u,
-                     self.s_sqrt,
-                     self.noise_obs)
+        return OILMM(
+            self.model.condition(proj_x, proj_y, proj_w, x_ind=x_ind),
+            self.u,
+            self.s_sqrt,
+            self.noise_obs,
+        )
 
     def project(self, x, y):
         """Project data.
@@ -239,9 +241,11 @@ class OILMM(metaclass=Referentiable):
         patterns = list(set(map(tuple, list(available))))
 
         if len(patterns) > 30:
-            warnings.warn(f'Detected {len(patterns)} patterns, which is more '
-                          f'than 30 and can be slow.',
-                          category=UserWarning)
+            warnings.warn(
+                f"Detected {len(patterns)} patterns, which is more "
+                f"than 30 and can be slow.",
+                category=UserWarning,
+            )
 
         # Per pattern, find data points that belong to it.
         patterns_inds = [[] for _ in range(len(patterns))]
@@ -255,20 +259,21 @@ class OILMM(metaclass=Referentiable):
         total_reg = 0
 
         for pattern, pattern_inds in zip(patterns, patterns_inds):
-            proj_x, proj_y, proj_w, reg = \
-                self._project_pattern(B.take(x, pattern_inds),
-                                      B.take(y, pattern_inds),
-                                      pattern)
+            proj_x, proj_y, proj_w, reg = self._project_pattern(
+                B.take(x, pattern_inds), B.take(y, pattern_inds), pattern
+            )
 
             proj_xs.append(proj_x)
             proj_ys.append(proj_y)
             proj_ws.append(proj_w)
             total_reg = total_reg + reg
 
-        return B.concat(*proj_xs, axis=0), \
-               B.concat(*proj_ys, axis=0), \
-               B.concat(*proj_ws, axis=0), \
-               total_reg
+        return (
+            B.concat(*proj_xs, axis=0),
+            B.concat(*proj_ys, axis=0),
+            B.concat(*proj_ws, axis=0),
+            total_reg,
+        )
 
     def _project_pattern(self, x, y, pattern):
         # Check whether all data is available.
@@ -293,8 +298,9 @@ class OILMM(metaclass=Referentiable):
 
         # Compute projected noise.
         u_square = B.matmul(u, u, tr_a=True)
-        proj_noise = self.noise_obs / B.diag(self.s_sqrt) ** 2 * \
-                     B.diag(B.pd_inv(u_square))
+        proj_noise = (
+            self.noise_obs / B.diag(self.s_sqrt) ** 2 * B.diag(B.pd_inv(u_square))
+        )
 
         # Convert projected noise to weights.
         noises = self.model.noises
@@ -302,14 +308,16 @@ class OILMM(metaclass=Referentiable):
         proj_w = B.ones(B.dtype(weights), n, self.m) * weights[None, :]
 
         # Compute Frobenius norm.
-        frob = B.sum(y ** 2) - \
-               B.sum(proj_y_partial * B.matmul(proj_y_partial, u_square))
+        frob = B.sum(y ** 2)
+        frob = frob - B.sum(proj_y_partial * B.matmul(proj_y_partial, u_square))
 
         # Compute regularising term.
-        reg = 0.5 * (n * (p - self.m) * B.log(2 * B.pi * self.noise_obs) +
-                     frob / self.noise_obs +
-                     n * B.logdet(B.matmul(u, u, tr_a=True)) +
-                     n * 2 * B.logdet(self.s_sqrt))
+        reg = 0.5 * (
+            n * (p - self.m) * B.log(2 * B.pi * self.noise_obs)
+            + frob / self.noise_obs
+            + n * B.logdet(B.matmul(u, u, tr_a=True))
+            + n * 2 * B.logdet(self.s_sqrt)
+        )
 
         return x, proj_y, proj_w, reg
 
@@ -328,9 +336,7 @@ class OILMM(metaclass=Referentiable):
                 bound, and upper 95% central credible bound if `variances` is
                 `False`, and means and variances otherwise.
         """
-        means, variances = self.model.predict(x,
-                                              latent=latent,
-                                              return_variances=True)
+        means, variances = self.model.predict(x, latent=latent, return_variances=True)
 
         # Pull means and variances through mixing matrix.
         means = B.dense(B.matmul(means, self.h, tr_b=True))
@@ -342,7 +348,7 @@ class OILMM(metaclass=Referentiable):
         if return_variances:
             return means, variances
         else:
-            error = 2 * B.sqrt(variances)
+            error = 1.96 * B.sqrt(variances)
             return means, means - error, means + error
 
     def sample(self, x, latent=False):
@@ -356,9 +362,9 @@ class OILMM(metaclass=Referentiable):
         Returns:
             matrix: Sample.
         """
-        sample = B.dense(B.matmul(self.model.sample(x, latent=latent),
-                                  self.h,
-                                  tr_b=True))
+        sample = B.dense(
+            B.matmul(self.model.sample(x, latent=latent), self.h, tr_b=True)
+        )
         if not latent:
             sample = sample + B.sqrt(self.noise_obs) * B.randn(sample)
         return sample
