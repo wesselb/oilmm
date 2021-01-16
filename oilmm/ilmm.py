@@ -32,7 +32,7 @@ class ILMMPP(metaclass=Referentiable):
     Mixing Model.
 
     Args:
-        kernels (list[:class:`stheno.Kernel`]) Kernels.
+        kernels (list[:class:`stheno.Kernel`]): Kernels.
         h (matrix): Mixing matrix.
         noise_obs (scalar): Observation noise. One.
         noises_latent (vector): Latent noises.
