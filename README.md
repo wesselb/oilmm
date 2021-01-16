@@ -8,7 +8,16 @@
 
 Implementation of the Orthogonal Instantaneous Linear Mixing Model
 
-## Installation
+## User Installation With `pip`
+
+See [the instructions here](https://gist.github.com/wesselb/4b44bf87f3789425f96e26c4308d0adc).
+Then simply
+
+```bash
+pip install oilmm
+```
+
+## Repo Installation Without `pip`
 
 See [the instructions here](https://gist.github.com/wesselb/4b44bf87f3789425f96e26c4308d0adc).
 
