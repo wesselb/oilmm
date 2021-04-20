@@ -2,10 +2,12 @@ import warnings
 
 import lab as B
 from matrix import AbstractMatrix, Dense
-from plum import Dispatcher, Self, Referentiable, List
+from plum import Dispatcher, List
 from stheno import GP, Delta, WeightedUnique, Obs, SparseObservations, Kernel
 
 __all__ = ["OILMM", "IGP"]
+
+_dispatch = Dispatcher()
 
 
 def _per_output(x, y, w):
@@ -28,7 +30,7 @@ def _init_weights(w, y):
         return w
 
 
-class IGP(metaclass=Referentiable):
+class IGP:
     """Independent GPs.
 
     Args:
@@ -36,15 +38,13 @@ class IGP(metaclass=Referentiable):
         noises (vector): Observation noises.
     """
 
-    _dispatch = Dispatcher(in_class=Self)
-
-    @_dispatch(List(Kernel), B.Numeric)
-    def __init__(self, kernels, noises):
+    @_dispatch
+    def __init__(self, kernels: List[Kernel], noises: B.Numeric):
         fs = [GP(k) for k in kernels]
         IGP.__init__(self, fs, noises)
 
-    @_dispatch(List(GP), B.Numeric)
-    def __init__(self, fs, noises):
+    @_dispatch
+    def __init__(self, fs: List[GP], noises: B.Numeric):
         self.fs = fs
         self.noises = noises
 
@@ -160,7 +160,7 @@ class IGP(metaclass=Referentiable):
         return B.concat(*[p(x).sample() for p in processes], axis=1)
 
 
-class OILMM(metaclass=Referentiable):
+class OILMM:
     """Orthogonal Instantaneous Linear Mixing model.
 
     Args:
@@ -171,10 +171,10 @@ class OILMM(metaclass=Referentiable):
 
     """
 
-    _dispatch = Dispatcher(in_class=Self)
-
-    @_dispatch(object, AbstractMatrix, AbstractMatrix, B.Numeric)
-    def __init__(self, model, u, s_sqrt, noise_obs):
+    @_dispatch
+    def __init__(
+        self, model, u: AbstractMatrix, s_sqrt: AbstractMatrix, noise_obs: B.Numeric
+    ):
         self.model = model
         self.u = u
         self.s_sqrt = s_sqrt
@@ -183,8 +183,15 @@ class OILMM(metaclass=Referentiable):
 
         self.p, self.m = B.shape(u)
 
-    @_dispatch(list, AbstractMatrix, AbstractMatrix, B.Numeric, B.Numeric)
-    def __init__(self, kernels, u, s_sqrt, noise_obs, noises_latent):
+    @_dispatch
+    def __init__(
+        self,
+        kernels: List[Kernel],
+        u: AbstractMatrix,
+        s_sqrt: AbstractMatrix,
+        noise_obs: B.Numeric,
+        noises_latent: B.Numeric,
+    ):
         OILMM.__init__(self, IGP(kernels, noises_latent), u, s_sqrt, noise_obs)
 
     def logpdf(self, x, y, x_ind=None):

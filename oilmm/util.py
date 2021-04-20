@@ -1,6 +1,6 @@
 import lab as B
-from matrix import AbstractMatrix, Kronecker
 import numpy as np
+from matrix import AbstractMatrix, Kronecker
 
 __all__ = ["Normaliser"]
 
@@ -83,8 +83,8 @@ class Normaliser:
         return -B.shape(y)[0] * B.sum(B.log(self.scale))
 
 
-@B.dispatch(AbstractMatrix)
-def pinv(a):
+@B.dispatch
+def pinv(a: AbstractMatrix):
     """Compute the left pseudo-inverse.
 
     Args:
@@ -96,8 +96,8 @@ def pinv(a):
     return B.cholsolve(B.chol(B.matmul(a, a, tr_a=True)), B.transpose(a))
 
 
-@B.dispatch(Kronecker)
-def pinv(a):
+@B.dispatch
+def pinv(a: Kronecker):
     return Kronecker(B.pinv(a.left), B.pinv(a.right))
 
 

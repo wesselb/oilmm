@@ -1,9 +1,11 @@
 from lab import B
 from matrix import AbstractMatrix
-from plum import Dispatcher, Referentiable, Self, List
+from plum import Dispatcher, List
 from stheno import Measure, GP, Delta, Obs, Kernel
 
 __all__ = ["ILMMPP"]
+
+_dispatch = Dispatcher()
 
 
 def _per_output(x, y):
@@ -27,7 +29,7 @@ def _matmul(a, x):
     return out
 
 
-class ILMMPP(metaclass=Referentiable):
+class ILMMPP:
     """Probabilistic programming implementation of the Instantaneous Linear
     Mixing Model.
 
@@ -38,10 +40,15 @@ class ILMMPP(metaclass=Referentiable):
         noises_latent (vector): Latent noises.
     """
 
-    _dispatch = Dispatcher(in_class=Self)
-
-    @_dispatch(Measure, List(GP), AbstractMatrix, B.Numeric, B.Numeric)
-    def __init__(self, measure, xs, h, noise_obs, noises_latent):
+    @_dispatch
+    def __init__(
+        self,
+        measure: Measure,
+        xs: List[GP],
+        h: AbstractMatrix,
+        noise_obs: B.Numeric,
+        noises_latent: B.Numeric,
+    ):
         self.measure = measure
         self.xs = xs
         self.h = h
@@ -63,8 +70,14 @@ class ILMMPP(metaclass=Referentiable):
             f + GP(self.noise_obs * Delta(), measure=self.measure) for f in fs_noisy
         ]
 
-    @_dispatch(List(Kernel), AbstractMatrix, B.Numeric, B.Numeric)
-    def __init__(self, kernels, h, noise_obs, noises_latent):
+    @_dispatch
+    def __init__(
+        self,
+        kernels: List[Kernel],
+        h: AbstractMatrix,
+        noise_obs: B.Numeric,
+        noises_latent: B.Numeric,
+    ):
         measure = Measure()
 
         # Create latent processes.
