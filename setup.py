@@ -4,12 +4,12 @@ requirements = [
     "numpy>=1.16",
     "torch",
     "matplotlib",
-    "stheno",
-    "varz",
-    "wbml",
-    "backends",
-    "backends-matrix",
-    "plum-dispatch",
+    "stheno>=1",
+    "varz>=0.6",
+    "wbml>=0.3",
+    "backends>=1",
+    "backends-matrix>=1",
+    "plum-dispatch>=1",
 ]
 
 setup(
