@@ -17,7 +17,7 @@ def construct_oilmm():
     s_sqrt = Diagonal(s_sqrt)
 
     def construct_iolmm(noise_amplification=1):
-        noise_obs = 0.1 * noise_amplification
+        noise_obs = noise_amplification
         noises_latent = np.array([0.1, 0.2]) * noise_amplification
         return OILMM(kernels, u, s_sqrt, noise_obs, noises_latent)
 
@@ -107,7 +107,7 @@ def test_sample_noiseless(construct_oilmm, x):
     sample = oilmm.sample(x, latent=True)
 
     # Test that sample has low variance.
-    assert B.std(sample) < 3
+    assert B.std(sample) < 4
 
 
 def test_sample_noisy(construct_oilmm, x):

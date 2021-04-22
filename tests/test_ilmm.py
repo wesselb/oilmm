@@ -15,7 +15,7 @@ def construct_ilmm():
     h = Dense(B.randn(3, 2))
 
     def construct_ilmm(noise_amplification=1):
-        noise_obs = 0.1 * noise_amplification
+        noise_obs = noise_amplification
         noises_latent = np.array([0.1, 0.2]) * noise_amplification
         return ILMMPP(kernels, h, noise_obs, noises_latent)
 
@@ -53,7 +53,7 @@ def test_sample_noiseless(construct_ilmm, x):
     sample = ilmm.sample(x, latent=True)
 
     # Test that sample has low variance.
-    assert B.std(sample) < 3
+    assert B.std(sample) < 4
 
 
 def test_sample_noisy(construct_ilmm, x):
