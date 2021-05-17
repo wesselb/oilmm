@@ -4,7 +4,7 @@ requirements = [
     "numpy>=1.16",
     "torch",
     "matplotlib",
-    "stheno>=1",
+    "stheno>=1.1",
     "varz>=0.6",
     "wbml>=0.3",
     "backends>=1",

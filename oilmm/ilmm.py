@@ -127,7 +127,7 @@ class ILMMPP:
         else:
             ps = self.ys
 
-        means, lowers, uppers = zip(*[p(x).marginals() for p in ps])
+        means, lowers, uppers = zip(*[p(x).marginal_credible_bounds() for p in ps])
         return (
             B.stack(*means, axis=1),
             B.stack(*lowers, axis=1),

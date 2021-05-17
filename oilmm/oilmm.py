@@ -3,7 +3,7 @@ import warnings
 import lab as B
 from matrix import AbstractMatrix, Dense
 from plum import Dispatcher, List
-from stheno import GP, Delta, WeightedUnique, Obs, SparseObservations, Kernel
+from stheno import GP, Obs, PseudoObs, Kernel
 
 __all__ = ["OILMM", "IGP"]
 
@@ -48,12 +48,6 @@ class IGP:
         self.fs = fs
         self.noises = noises
 
-        self.es = [
-            GP(noises[i] * Delta(), measure=self.fs[i].measure)
-            for i in range(B.shape(noises)[0])
-        ]
-        self.fs_noisy = [f + e for f, e in zip(self.fs, self.es)]
-
     def logpdf(self, x, y, w=None, x_ind=None):
         """Compute the logpdf.
 
@@ -70,15 +64,11 @@ class IGP:
 
         logpdf = 0
 
-        for f, e, f_noisy, (xi, yi, wi) in zip(
-            self.fs, self.es, self.fs_noisy, _per_output(x, y, w)
-        ):
-            xwi = WeightedUnique(xi, wi)
-
+        for f, ni, (xi, yi, wi) in zip(self.fs, self.noises, _per_output(x, y, w)):
             if x_ind is None:
-                logpdf = logpdf + f_noisy(xwi).logpdf(yi)
+                logpdf = logpdf + f(xi, ni / wi).logpdf(yi)
             else:
-                obs = SparseObservations(f(x_ind), e, f(xwi), yi)
+                obs = PseudoObs(f(x_ind), f(xi, ni / wi), yi)
                 logpdf = logpdf + obs.elbo(f.measure)
 
         return logpdf
@@ -95,18 +85,12 @@ class IGP:
         w = _init_weights(w, y)
 
         fs_post = []
-        for f, e, f_noisy, (xi, yi, wi) in zip(
-            self.fs, self.es, self.fs_noisy, _per_output(x, y, w)
-        ):
-            xwi = WeightedUnique(xi, wi)
-
+        for f, ni, (xi, yi, wi) in zip(self.fs, self.noises, _per_output(x, y, w)):
             if x_ind is None:
-                obs = Obs(f_noisy(xwi), yi)
+                obs = Obs(f(xi, ni / wi), yi)
             else:
-                obs = SparseObservations(f(x_ind), e, f(xwi), yi)
-
-            post = f.measure | obs
-            fs_post.append(post(f))
+                obs = PseudoObs(f(x_ind), f(xi, ni / wi), yi)
+            fs_post.append(f | obs)
 
         return IGP(fs_post, self.noises)
 
@@ -125,21 +109,17 @@ class IGP:
                 and upper 95% central credible bound if `variances` is `False`,
                 and means and variances otherwise.
         """
-        if latent:
-            ps = self.fs
-        else:
-            ps = self.fs_noisy
+        mean = B.stack(*[B.squeeze(B.dense(f.mean(x))) for f in self.fs], axis=1)
+        var = B.stack(*[B.squeeze(f.kernel.elwise(x)) for f in self.fs], axis=1)
 
-        means = B.stack(*[B.squeeze(B.dense(p.mean(x))) for p in ps], axis=1)
-        variances = B.stack(
-            *[B.squeeze(B.dense(p.kernel.elwise(x))) for p in ps], axis=1
-        )
+        if not latent:
+            var = var + self.noises[None, :]
 
         if return_variances:
-            return means, variances
+            return mean, var
         else:
-            error = 1.96 * B.sqrt(variances)
-            return means, means - error, means + error
+            error = 1.96 * B.sqrt(var)
+            return mean, mean - error, mean + error
 
     def sample(self, x, latent=False):
         """Sample from the model.
@@ -152,12 +132,8 @@ class IGP:
         Returns:
             matrix: Sample.
         """
-        if latent:
-            processes = self.fs
-        else:
-            processes = self.fs_noisy
-
-        return B.concat(*[p(x).sample() for p in processes], axis=1)
+        fdds = [f(x, *(() if latent else (n,))) for f, n in zip(self.fs, self.noises)]
+        return B.concat(*[fdd.sample() for fdd in fdds], axis=1)
 
 
 class OILMM:
@@ -343,20 +319,20 @@ class OILMM:
                 bound, and upper 95% central credible bound if `variances` is
                 `False`, and means and variances otherwise.
         """
-        means, variances = self.model.predict(x, latent=latent, return_variances=True)
+        mean, var = self.model.predict(x, latent=latent, return_variances=True)
 
         # Pull means and variances through mixing matrix.
-        means = B.dense(B.matmul(means, self.h, tr_b=True))
-        variances = B.dense(B.matmul(variances, self.h ** 2, tr_b=True))
+        mean = B.dense(B.matmul(mean, self.h, tr_b=True))
+        var = B.dense(B.matmul(var, self.h ** 2, tr_b=True))
 
         if not latent:
-            variances = variances + self.noise_obs
+            var = var + self.noise_obs
 
         if return_variances:
-            return means, variances
+            return mean, var
         else:
-            error = 1.96 * B.sqrt(variances)
-            return means, means - error, means + error
+            error = 1.96 * B.sqrt(var)
+            return mean, mean - error, mean + error
 
     def sample(self, x, latent=False):
         """Sample from the model.
