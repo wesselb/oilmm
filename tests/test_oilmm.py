@@ -75,7 +75,7 @@ def test_correctness(lmm, increased_regularisation):
     def check_logpdfs(lmm, mogp, mogp_extra_var):
         mogp_extra_var = matrix.TiledBlocks(mogp_extra_var, B.shape(x, 0))
         for y in [lmm.sample(x), mogp.sample(x)]:
-            approx(lmm.logpdf(x, y), mogp.logpdf(x, y, mogp_extra_var), rtol=1e-6)
+            approx(lmm.logpdf(x, y), mogp.logpdf(x, y, mogp_extra_var), rtol=5e-6)
 
     def check_preds(lmm, mogp, mogp_extra_var):
         # Account for the data transformation.
@@ -88,8 +88,8 @@ def test_correctness(lmm, increased_regularisation):
         # Make the predictions of `mogp` line up.
         mogp_var = B.diag_extract(mogp_var) + B.diag(mogp_extra_var)[None, :]
 
-        approx(lmm_mean, mogp_mean, rtol=1e-6)
-        approx(lmm_var, mogp_var, rtol=1e-6)
+        approx(lmm_mean, mogp_mean, rtol=5e-6)
+        approx(lmm_var, mogp_var, rtol=5e-6)
 
     # Check priors.
     check_logpdfs(lmm, mogp, y_noise)
