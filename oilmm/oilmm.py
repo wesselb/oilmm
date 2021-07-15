@@ -1,205 +1,127 @@
 import warnings
+from types import FunctionType
 
 import lab as B
-from matrix import AbstractMatrix, Dense
-from plum import Dispatcher, List
-from stheno import GP, Obs, PseudoObs, Kernel
+import numpy as np
+from matrix import TiledBlocks, AbstractMatrix
+from plum import Dispatcher, convert
+from varz import minimise_l_bfgs_b
+from probmods.bijection import parse as _parse_transform
+from probmods.model import MultiOutputModel
 
-__all__ = ["OILMM", "IGP"]
+from .imogp import IMOGP
+from .mogp import MOGP
+from .util import count
+
+__all__ = ["OILMM", "ILMM"]
 
 _dispatch = Dispatcher()
 
 
-def _per_output(x, y, w):
-    p = B.shape(y)[1]
-
-    for i in range(p):
-        yi = y[:, i]
-        wi = w[:, i]
-
-        # Only return available observations.
-        available = ~B.isnan(yi)
-
-        yield x[available], yi[available], wi[available]
-
-
-def _init_weights(w, y):
-    if w is None:
-        return B.ones(y)
-    else:
-        return w
-
-
-class IGP:
-    """Independent GPs.
+class AbstractILMM(MultiOutputModel):
+    """Instantaneous Linear Mixing Model.
 
     Args:
-        kernels (list[:class:`stheno.Kernel`]): Kernels.
-        noises (vector): Observation noises.
+        dtype (dtype): Data type.
+        latent_processes (function or :class:`wbml.model.ProbabilisticModel`): Function
+            which takes in a parameters struct and returns a list of tuples of
+            :class:`stheno.GP`s and noises, which correspond to the models for the
+            latent processes or another model.
+        noise (scalar, optional): Observation noise. Defaults to `1e-2`.
+        mixing_matrix (str or tensor or function, optional): Either the string "random",
+            an initial value, or a function which takes in a parameter struct, a height,
+            and a width and returns the mixing matrix.
+        data_transform (str or :class:`.bijection.Bijection`, optional): Specification
+            for a data transformation. Defaults to "normalise".
+        num_outputs (int, optional): Number of outputs. Will be automatically inferred.
     """
 
-    @_dispatch
-    def __init__(self, kernels: List[Kernel], noises: B.Numeric):
-        fs = [GP(k) for k in kernels]
-        IGP.__init__(self, fs, noises)
-
-    @_dispatch
-    def __init__(self, fs: List[GP], noises: B.Numeric):
-        self.fs = fs
-        self.noises = noises
-
-    def logpdf(self, x, y, w=None, x_ind=None):
-        """Compute the logpdf.
-
-        Args:
-            x (matrix): Locations of training data.
-            y (matrix): Observations of training data.
-            w (matrix, optional): Weights of training data.
-            x_ind (matrix, optional): Locations of inducing points.
-
-        Returns:
-            scalar: Logpdf.
-        """
-        w = _init_weights(w, y)
-
-        logpdf = 0
-
-        for f, ni, (xi, yi, wi) in zip(self.fs, self.noises, _per_output(x, y, w)):
-            if x_ind is None:
-                logpdf = logpdf + f(xi, ni / wi).logpdf(yi)
-            else:
-                obs = PseudoObs(f(x_ind), f(xi, ni / wi), yi)
-                logpdf = logpdf + obs.elbo(f.measure)
-
-        return logpdf
-
-    def condition(self, x, y, w=None, x_ind=None):
-        """Condition the model.
-
-        Args:
-            x (matrix): Locations of training data.
-            y (matrix): Observations of training data.
-            w (matrix, optional): Weights of training data.
-            x_ind (matrix, optional): Locations of inducing points.
-        """
-        w = _init_weights(w, y)
-
-        fs_post = []
-        for f, ni, (xi, yi, wi) in zip(self.fs, self.noises, _per_output(x, y, w)):
-            if x_ind is None:
-                obs = Obs(f(xi, ni / wi), yi)
-            else:
-                obs = PseudoObs(f(x_ind), f(xi, ni / wi), yi)
-            fs_post.append(f | obs)
-
-        return IGP(fs_post, self.noises)
-
-    def predict(self, x, latent=False, return_variances=False):
-        """Predict.
-
-        Args:
-            x (matrix): Input locations to predict at.
-            latent (bool, optional): Predict noiseless processes. Defaults
-                to `False`.
-            return_variances (bool, optional): Return means and variances
-                instead. Defaults to `False`.
-
-        Returns:
-            tuple: Tuple containing means, lower 95% central credible bound,
-                and upper 95% central credible bound if `variances` is `False`,
-                and means and variances otherwise.
-        """
-        mean = B.stack(*[B.squeeze(B.dense(f.mean(x))) for f in self.fs], axis=1)
-        var = B.stack(*[B.squeeze(f.kernel.elwise(x)) for f in self.fs], axis=1)
-
-        if not latent:
-            var = var + self.noises[None, :]
-
-        if return_variances:
-            return mean, var
-        else:
-            error = 1.96 * B.sqrt(var)
-            return mean, mean - error, mean + error
-
-    def sample(self, x, latent=False):
-        """Sample from the model.
-
-        Args:
-            x (matrix): Locations to sample at.
-            latent (bool, optional): Sample noiseless processes. Defaults
-                to `False`.
-
-        Returns:
-            matrix: Sample.
-        """
-        fdds = [f(x, *(() if latent else (n,))) for f, n in zip(self.fs, self.noises)]
-        return B.concat(*[fdd.sample() for fdd in fdds], axis=1)
-
-
-class OILMM:
-    """Orthogonal Instantaneous Linear Mixing model.
-
-    Args:
-        kernels (list[:class:`stheno.Kernel`]) Kernels.
-        u (matrix): Orthogonal part of the mixing matrix.
-        s_sqrt (matrix): Diagonal part of the mixing matrix.
-        noise_obs (scalar): Observation noise.
-
-    """
-
-    @_dispatch
-    def __init__(
-        self, model, u: AbstractMatrix, s_sqrt: AbstractMatrix, noise_obs: B.Numeric
-    ):
-        self.model = model
-        self.u = u
-        self.s_sqrt = s_sqrt
-        self.h = u @ s_sqrt
-        self.noise_obs = noise_obs
-
-        self.p, self.m = B.shape(u)
-
-    @_dispatch
     def __init__(
         self,
-        kernels: List[Kernel],
-        u: AbstractMatrix,
-        s_sqrt: AbstractMatrix,
-        noise_obs: B.Numeric,
-        noises_latent: B.Numeric,
+        dtype,
+        latent_processes,
+        noise=1e-2,
+        mixing_matrix=None,
+        data_transform="normalise",
+        num_outputs=None,
     ):
-        OILMM.__init__(self, IGP(kernels, noises_latent), u, s_sqrt, noise_obs)
+        MultiOutputModel.__init__(self, dtype)
+        self.latent_processes = _parse_latent_processes(self, latent_processes)
+        self._noise = noise
+        self._mixing_matrix = _parse_mixing_matrix(self, mixing_matrix)
+        self.data_transform = _parse_transform(data_transform)
+        self.num_outputs = num_outputs
 
-    def logpdf(self, x, y, x_ind=None):
-        """Compute the logpdf.
+    @property
+    def noise(self):
+        """scalar: Observation noise."""
+        if self._noise is 0:
+            return 0
+        else:
+            return self.params.noise.positive(self._noise)
 
-        Args:
-            x (matrix): Locations of training data.
-            y (matrix): Observations of training data.
-            x_ind (matrix, optional): Locations of inducing points.
-
-        Returns:
-            scalar: Logpdf.
-        """
-        proj_x, proj_y, proj_w, reg = self.project(x, y)
-        return self.model.logpdf(proj_x, proj_y, proj_w, x_ind=x_ind) - reg
-
-    def condition(self, x, y, x_ind=None):
-        """Condition the model.
-
-        Args:
-            x (matrix): Locations of training data.
-            y (matrix): Observations of training data.
-            x_ind (matrix, optional): Locations of inducing points.
-        """
-        self.p = B.shape(y)[1]
-        proj_x, proj_y, proj_w, _ = self.project(x, y)
-        return OILMM(
-            self.model.condition(proj_x, proj_y, proj_w, x_ind=x_ind),
-            self.u,
-            self.s_sqrt,
-            self.noise_obs,
+    @property
+    def mixing_matrix(self):
+        """matrix: Mixing matrix."""
+        h = self._mixing_matrix(
+            self.params.mixing_matrix,
+            self.num_outputs,
+            self.latent_processes.num_outputs,
         )
+        if B.shape(h) != (self.num_outputs, self.latent_processes.num_outputs):
+            raise RuntimeError(
+                f"Constructor for mixing matrix construct a matrix of shape "
+                f"{B.shape(h)}, but shape "
+                f"({self.num_outputs}, {self.latent_processes.num_outputs}) was "
+                f"expected."
+            )
+        return h
+
+    @property
+    def noiseless(self):
+        # This is either an ILMM or OILMM. We need to preserve the type.
+        return type(self)(
+            dtype=self.dtype,
+            latent_processes=self.latent_processes.noiseless,
+            noise=0,
+            mixing_matrix=self._mixing_matrix,
+            data_transform=self.data_transform,
+            num_outputs=self.num_outputs,
+        ).bind(self)
+
+    def _init(self, y):
+        self.num_outputs = B.shape(y, 1)
+
+    def logpdf(self, x, y):
+        self._init(y)
+        y, proj_x, proj_y, proj_n, reg = self.project(x, y)
+        return (
+            self.latent_processes.logpdf(proj_x, proj_y, proj_n)
+            - reg
+            + self.data_transform.logdet(y)
+        )
+
+    def condition(self, x, y):
+        self._init(y)
+        _, proj_x, proj_y, proj_n, _ = self.project(x, y)
+        # This is either an ILMM or OILMM. We need to preserve the type.
+        return type(self)(
+            dtype=self.dtype,
+            latent_processes=self.latent_processes.condition(proj_x, proj_y, proj_n),
+            noise=self._noise,
+            mixing_matrix=self._mixing_matrix,
+            data_transform=self.data_transform,
+            num_outputs=self.num_outputs,
+        ).bind(self)
+
+    def fit(self, x, y, **kw_args):
+        self._init(y)
+
+        def negative_log_marginal_likelihood(vs):
+            with self.use_vs(vs):
+                return -self.logpdf(x, y) / count(y)
+
+        minimise_l_bfgs_b(negative_log_marginal_likelihood, self.vs, **kw_args)
 
     def project(self, x, y):
         """Project data.
@@ -209,19 +131,29 @@ class OILMM:
             y (matrix): Observations of data.
 
         Returns:
-            tuple: Tuple containing the locations of the projection,
-                the projection, weights associated with the projection, and
-                a regularisation term.
+            tuple: Tuple containing the transformed data, the locations of the
+                projection, the projected data, the projected noise, and a
+                regularisation term.
         """
-        n = B.shape(x)[0]
-        available = ~B.isnan(B.to_numpy(y))
+        self._init(y)
+
+        # Perform data transformation and check for missing data.
+        y = self.data_transform(y)
+        # We convert `available` to NumPy to efficiently compute the available patterns.
+        available = B.jit_to_numpy(~B.isnan(y))
+
+        # We will need the mixing matrix multiple times.
+        h = self.mixing_matrix
 
         # Optimise the case where all data is available.
         if B.all(available):
-            return self._project_pattern(x, y, (True,) * self.p)
+            return (y,) + self._project_pattern(
+                x, y, np.array([True] * self.num_outputs), h
+            )
 
-        # Extract patterns.
-        patterns = list(set(map(tuple, list(available))))
+        # Extract patterns. We convert to bytes for hashing.
+        available_patterns = [row.tobytes() for row in available]
+        patterns = list(set(available_patterns))
 
         if len(patterns) > 30:
             warnings.warn(
@@ -231,123 +163,205 @@ class OILMM:
             )
 
         # Per pattern, find data points that belong to it.
-        patterns_inds = [[] for _ in range(len(patterns))]
-        for i in range(n):
-            patterns_inds[patterns.index(tuple(available[i]))].append(i)
+        patterns_index = {pattern: i for i, pattern in enumerate(patterns)}
+        patterns_inds = [[] for _ in patterns]
+        for i, pattern in enumerate(available_patterns):
+            patterns_inds[patterns_index[pattern]].append(i)
 
         # Per pattern, perform the projection.
-        proj_xs = []
-        proj_ys = []
-        proj_ws = []
+        projs = []
         total_reg = 0
-
-        for pattern, pattern_inds in zip(patterns, patterns_inds):
-            proj_x, proj_y, proj_w, reg = self._project_pattern(
-                B.take(x, pattern_inds), B.take(y, pattern_inds), pattern
+        for pattern_inds in patterns_inds:
+            # Extract a mask by just taking the first index.
+            mask = available[pattern_inds[0]]
+            proj_x, proj_y, proj_n, reg = self._project_pattern(
+                B.take(x, pattern_inds),
+                B.take(y, pattern_inds),
+                mask,
+                h,
             )
-
-            proj_xs.append(proj_x)
-            proj_ys.append(proj_y)
-            proj_ws.append(proj_w)
+            projs.append((proj_x, proj_y, proj_n))
             total_reg = total_reg + reg
 
+        # Concatenate the projections for all patterns and return.
+        proj_xs, proj_ys, proj_ns = zip(*projs)
         return (
+            y,
             B.concat(*proj_xs, axis=0),
             B.concat(*proj_ys, axis=0),
-            B.concat(*proj_ws, axis=0),
+            B.concat(*proj_ns, axis=0),
             total_reg,
         )
 
-    def _project_pattern(self, x, y, pattern):
-        # Check whether all data is available.
-        no_missing = all(pattern)
+    def _project_pattern(self, x, y, mask, h):
+        m = self.latent_processes.num_outputs
 
-        if no_missing:
-            # All data is available. Nothing to be done.
-            u = self.u
-        else:
+        if not B.all(mask):
             # Data is missing. Pick the available entries.
-            y = B.take(y, pattern, axis=1)
-            # Ensure that `u` remains a structured matrix.
-            u = Dense(B.take(self.u, pattern))
+            y = B.take(y, mask, axis=1)
+            h = B.take(h, mask, axis=0)
+
+        # Ensure that `h` is a structured matrix for dispatch.
+        h = convert(h, AbstractMatrix)
 
         # Get number of data points and outputs in this part of the data.
-        n = B.shape(x)[0]
-        p = sum(pattern)
+        n = B.shape(x, 0)
+        p = sum(mask)
 
         # Perform projection.
-        proj_y_partial = B.matmul(y, B.pinv(u), tr_b=True)
-        proj_y = B.matmul(proj_y_partial, B.inv(self.s_sqrt), tr_b=True)
+        proj_y = B.matmul(y, B.pinv(h), tr_b=True)
 
         # Compute projected noise.
-        u_square = B.matmul(u, u, tr_a=True)
-        proj_noise = (
-            self.noise_obs / B.diag(self.s_sqrt) ** 2 * B.diag(B.pd_inv(u_square))
-        )
-
-        # Convert projected noise to weights.
-        noises = self.model.noises
-        weights = noises / (noises + proj_noise)
-        proj_w = B.ones(B.dtype(weights), n, self.m) * weights[None, :]
+        h_square = B.matmul(h, h, tr_a=True)
+        proj_n = B.multiply(self.noise, B.pd_inv(h_square))
 
         # Compute Frobenius norm.
         frob = B.sum(y ** 2)
-        frob = frob - B.sum(proj_y_partial * B.matmul(proj_y_partial, u_square))
+        frob = frob - B.sum(proj_y * B.matmul(proj_y, h_square))
 
         # Compute regularising term.
         reg = 0.5 * (
-            n * (p - self.m) * B.log(2 * B.pi * self.noise_obs)
-            + frob / self.noise_obs
-            + n * B.logdet(B.matmul(u, u, tr_a=True))
-            + n * 2 * B.logdet(self.s_sqrt)
+            n * (p - m) * B.log(2 * B.pi * self.noise)
+            + frob / self.noise
+            + n * B.logdet(h_square)
         )
 
-        return x, proj_y, proj_w, reg
+        # Repeat the projected noise for every time stamp.
+        proj_n = TiledBlocks(proj_n, n, axis=0)
 
-    def predict(self, x, latent=False, return_variances=False):
-        """Predict.
+        return x, proj_y, proj_n, reg
 
-        Args:
-            x (matrix): Input locations to predict at.
-            latent (bool, optional): Predict noiseless processes. Defaults
-                to `False`.
-            return_variances (bool, optional): Return means and variances
-                instead. Defaults to `False`.
-
-        Returns:
-            tuple[matrix]: Tuple containing means, lower 95% central credible
-                bound, and upper 95% central credible bound if `variances` is
-                `False`, and means and variances otherwise.
-        """
-        mean, var = self.model.predict(x, latent=latent, return_variances=True)
+    def predict(self, x):
+        # Make predictions for the latent processes.
+        mean, var = self.latent_processes.predict(x)
 
         # Pull means and variances through mixing matrix.
-        mean = B.dense(B.matmul(mean, self.h, tr_b=True))
-        var = B.dense(B.matmul(var, self.h ** 2, tr_b=True))
-
-        if not latent:
-            var = var + self.noise_obs
-
-        if return_variances:
-            return mean, var
+        h = self.mixing_matrix
+        mean = B.dense(B.matmul(mean, h, tr_b=True))
+        # TODO: Simplify this if-statement once batched matrices are available.
+        if B.rank(var) == 2:
+            var = B.dense(B.matmul(var, h ** 2, tr_b=True))
+        elif B.rank(var) == 3:
+            var = B.dense(B.sum(h * B.matmul(h, var), axis=2))
         else:
-            error = 1.96 * B.sqrt(var)
-            return mean, mean - error, mean + error
+            raise RuntimeError(f"Invalid rank {B.rank(var)} of variance.")
 
-    def sample(self, x, latent=False):
-        """Sample from the model.
+        # Add noise.
+        var = var + self.noise
 
-        Args:
-            x (matrix): Locations to sample at.
-            latent (bool, optional): Sample noiseless processes. Defaults
-                to `False`.
+        return self.data_transform.untransform((mean, var))
 
-        Returns:
-            matrix: Sample.
-        """
-        sample = B.dense(
-            B.matmul(self.model.sample(x, latent=latent), self.h, tr_b=True)
-        )
-        if not latent:
-            sample = sample + B.sqrt(self.noise_obs) * B.randn(sample)
-        return sample
+    def sample(self, x):
+        # Sample from the latent processes.
+        sample = self.latent_processes.sample(x)
+
+        # Pull sample through mixing matrix.
+        sample = B.dense(B.matmul(sample, self.mixing_matrix, tr_b=True))
+
+        # Add noise.
+        sample = sample + B.sqrt(self.noise) * B.randn(sample)
+
+        return self.data_transform.untransform(sample)
+
+
+class OILMM(AbstractILMM):
+    """Orthogonal ILMM. See :class:`.AbstractILMM`."""
+
+
+class ILMM(AbstractILMM):
+    """ILMM. See :class:`.AbstractILMM`."""
+
+
+@_dispatch
+def _parse_latent_processes(model: AbstractILMM, spec: MultiOutputModel):
+    """Parse a specification for the latent processes.
+
+    Args:
+        model (:class:`.AbstractILMM`): Instance of the model.
+        spec (object): Specification.
+
+    Returns:
+        :class:`wbml.model.MultiOutputModel`: Model for the latent processes.
+    """
+    return spec
+
+
+@_dispatch
+def _parse_latent_processes(model: OILMM, spec: FunctionType):
+    return IMOGP(dtype=model.dtype, processes=spec)
+
+
+@_dispatch
+def _parse_latent_processes(model: ILMM, spec: FunctionType):
+    return MOGP(dtype=model.dtype, processes=spec)
+
+
+@_dispatch.abstract
+def _parse_mixing_matrix(model: AbstractILMM, spec: str):
+    """Parse a specification for the mixing matrix.
+
+    Args:
+        model (:class:`.AbstractILMM`): Instance of the model.
+        spec (object): Specification.
+
+    Returns:
+        function: Appropriate function that instantiates the mixing matrix. See
+            :class:`.AbstractILMM`.
+    """
+
+
+@_dispatch
+def _parse_mixing_matrix(model: OILMM, spec: None):
+    return _parse_mixing_matrix(model, "random")
+
+
+@_dispatch
+def _parse_mixing_matrix(model: OILMM, spec: str):
+    if spec == "random":
+
+        def mixing_matrix(params, p, m):
+            return params.u.orthogonal(shape=(p, m))
+
+    else:
+        raise ValueError(f'Unknown mixing matrix specification "{spec}".')
+
+    return mixing_matrix
+
+
+@_dispatch
+def _parse_mixing_matrix(model: OILMM, spec: B.Numeric):
+    def mixing_matrix(params, p, m):
+        return params.u.orthogonal(spec, shape=(p, m))
+
+    return mixing_matrix
+
+
+@_dispatch
+def _parse_mixing_matrix(model: ILMM, spec: None):
+    return _parse_mixing_matrix(model, "random")
+
+
+@_dispatch
+def _parse_mixing_matrix(model: ILMM, spec: str):
+    if spec == "random":
+
+        def mixing_matrix(params, p, m):
+            return params.h.unbounded(shape=(p, m))
+
+    else:
+        raise ValueError(f'Unknown mixing matrix specification "{spec}".')
+
+    return mixing_matrix
+
+
+@_dispatch
+def _parse_mixing_matrix(model: ILMM, spec: B.Numeric):
+    def mixing_matrix(params, p, m):
+        return params.h.unbounded(spec, shape=(p, m))
+
+    return mixing_matrix
+
+
+@_dispatch
+def _parse_mixing_matrix(model: AbstractILMM, spec: FunctionType):
+    return spec

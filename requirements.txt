@@ -4,4 +4,5 @@ sphinx
 sphinx-rtd-theme
 pytest
 pytest-cov
+pytest-mock
 coveralls

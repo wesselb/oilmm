@@ -2,14 +2,11 @@ from setuptools import find_packages, setup
 
 requirements = [
     "numpy>=1.16",
-    "torch",
-    "matplotlib",
-    "stheno>=1.1",
-    "varz>=0.6",
-    "wbml>=0.3",
-    "backends>=1",
-    "backends-matrix>=1",
-    "plum-dispatch>=1",
+    "stheno>=1.1.3",
+    "varz>=0.7.1",
+    "backends>=1.3.6",
+    "backends-matrix>=1.1.2",
+    "plum-dispatch>=1.3.2",
 ]
 
 setup(
