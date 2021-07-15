@@ -7,6 +7,7 @@ requirements = [
     "backends>=1.3.6",
     "backends-matrix>=1.1.2",
     "plum-dispatch>=1.3.2",
+    "probmods>=1.1",
 ]
 
 setup(
