@@ -24,13 +24,12 @@ def increased_regularisation():
 def oilmm():
     return OILMM(
         np.float64,
-        latent_processes=lambda _: [
+        lambda _: [
             (1.0 * GP(EQ().stretch(0.8)), 1e-2),
             (1.1 * GP(EQ().stretch(0.7)), 2e-2),
             (1.2 * GP(EQ().stretch(0.6)), 3e-2),
         ],
         num_outputs=6,
-        data_transform="normalise",
     )
 
 

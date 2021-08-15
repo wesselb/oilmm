@@ -40,23 +40,19 @@ from stheno import EQ, GP
 import tensorflow as tf
 from oilmm.tensorflow import OILMM
 
-# Construct model.
-prior = OILMM(
-    tf.float32,
-    latent_processes=lambda params: [
-        # Return models for latent processes, which are noise-contaminated GPs.
+
+def build_latent_processes(ps):
+    # Return models for latent processes, which are noise-contaminated GPs.
+    return [
         (
-            # Create a GP with a learnable variance initialised to one and
-            # a learnable length scale, also initialised to one.
             p.variance.positive(1) * GP(EQ().stretch(p.length_scale.positive(1))),
-            # Create a learnable noise variance initialised to `1e-2`.
             p.noise.positive(1e-2),
         )
-        for p, _ in zip(params, range(3))
-    ],
-    # We need to define the number of outputs if we want to sample from the prior.
-    num_outputs=6,
-)
+        for p, _ in zip(ps, range(3))
+    ]
+
+# Construct model.  
+prior = OILMM(tf.float32, build_latent_processes, num_outputs=6)
 
 # Create some sample data.
 x = np.linspace(0, 10, 100)
@@ -114,13 +110,13 @@ noise:      0.02245
 ```python
 from stheno import GP, EQ
 
-def build_latent_processes(params):
+def build_latent_processes(ps):
     return [
         (
             p.variance.positive(1) * GP(EQ().stretch(p.length_scale.positive(1))),
             p.noise.positive(1e-2),
         )
-        for p, _ in zip(params, range(3))
+        for p, _ in zip(ps, range(3))
     ]
 ```
 
@@ -128,14 +124,14 @@ def build_latent_processes(params):
 ```python
 from stheno import GP, RQ
 
-def build_latent_processes(params):
+def build_latent_processes(ps):
     return [
         (
             p.variance.positive(1)
             * GP(RQ(p.alpha.positive(1e-2)).stretch(p.length_scale.positive(1))),
             p.noise.positive(1e-2),
         )
-        for p, _ in zip(params, range(3))
+        for p, _ in zip(ps, range(3))
     ]
 ```
 
@@ -143,7 +139,7 @@ def build_latent_processes(params):
 ```python
 from stheno import GP, EQ
 
-def build_latent_processes(params):
+def build_latent_processes(ps):
     return [
         (
             p.variance.positive(1)
@@ -157,7 +153,7 @@ def build_latent_processes(params):
             ),
             p.noise.positive(1e-2),
         )
-        for p, _ in zip(params, range(3))
+        for p, _ in zip(ps, range(3))
     ]
 ```
 
@@ -168,13 +164,13 @@ from stheno import GP, Linear
 num_features = 10
 
 
-def build_latent_processes(params):
+def build_latent_processes(ps):
     return [
         (
             GP(Linear().stretch(p.length_scales.positive(1, shape=(num_features,)))),
             p.noise.positive(1e-2),
         )
-        for p, _ in zip(params, range(3))
+        for p, _ in zip(ps, range(3))
     ]
 ```
 
@@ -189,10 +185,10 @@ p_left, m_left = 10, 3
 p_right, m_right = 5, 2
 
 
-def build_mixing_matrix(params, p, m):
+def build_mixing_matrix(ps, p, m):
     return Kronecker(
-        params.left.orthogonal(shape=(p_left, m_left)),
-        params.right.orthogonal(shape=(p_right, m_right)),
+        ps.left.orthogonal(shape=(p_left, m_left)),
+        ps.right.orthogonal(shape=(p_right, m_right)),
     )
 ```
 

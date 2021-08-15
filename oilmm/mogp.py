@@ -4,12 +4,11 @@ import lab as B
 from matrix import AbstractMatrix, TiledBlocks
 from plum import Dispatcher
 from plum import Union
-from probmods.bijection import parse as _parse_transform
-from probmods.model import MultiOutputModel
+from probmods import Model, instancemethod, convert, parse as _parse_transform
 from stheno import Obs, cross, Measure, GP, Delta
 from varz import minimise_l_bfgs_b
 
-from .util import count
+from .util import count, parse_input
 
 __all__ = ["MOGP"]
 
@@ -60,21 +59,16 @@ def _resolve_noise(noise: None, p: B.Int, n: B.Int):
     return None
 
 
-class MOGP(MultiOutputModel):
+class MOGP(Model):
     """A general multi-output GP.
 
     Args:
-        dtype (dtype): Data type.
         processes (function): Function that returns a list of tuples of
             :class:`stheno.GP`s and noises, which correspond to the models for the
             outputs.
-        data_transform (str or :class:`.bijection.Bijection`, optional): Specification
-            for a data transformation. Defaults to no transform.
     """
 
-    def __init__(self, dtype, processes, data_transform=None):
-        MultiOutputModel.__init__(self, dtype)
-
+    def __init__(self, processes):
         # If no measure is specified, set a default one to ensure that all the processes
         # live on the same measure.
 
@@ -84,24 +78,15 @@ class MOGP(MultiOutputModel):
                 return processes(*args, **kw_args)
 
         self.processes = processes_wrapped
-        self.data_transform = _parse_transform(data_transform)
-        self.num_outputs = len(self.processes(self.params.processes))
 
-    @property
-    def noiseless(self):
+    def __prior__(self):
+        self.processes = self.processes(self.ps.processes)
+        self.num_outputs = len(self.processes)
 
-        def build_processes(params):
-            return [(f, 0) for f, _ in self.processes(params)]
-
-        return MOGP(
-            dtype=self.dtype,
-            processes=build_processes,
-            data_transform=self.data_transform,
-        ).bind(self)
+    def __noiseless__(self):
+        self.processes = [(f, 0) for f, _ in self.processes]
 
     def _obs_y(self, fs, noises, x, y, noise):
-        y = self.data_transform.transform(y)
-
         # Transform observations into a vector.
         y_flat = B.reshape(B.transpose(B.dense(y)), -1)  # Careful with the ordering!
 
@@ -114,37 +99,29 @@ class MOGP(MultiOutputModel):
 
         return obs, y
 
-    def logpdf(self, x, y, noise=None):
-        fs, noises = zip(*self.processes(self.params.processes))
+    @convert
+    def __condition__(self, x, y):
+        x, noise = parse_input(x)
+        fs, noises = zip(*self.processes)
+        obs, _ = self._obs_y(fs, noises, x, y, noise)
+        post = fs[0].measure | obs
+        self.processes = [(post(f), noise) for f, noise in zip(fs, noises)]
+
+    @instancemethod
+    @convert
+    def logpdf(self, x, y):
+        x, noise = parse_input(x)
+        fs, noises = zip(*self.processes)
         obs, y = self._obs_y(fs, noises, x, y, noise)
-        return fs[0].measure.logpdf(obs) + self.data_transform.logdet(y)
-
-    def condition(self, x, y, noise=None):
-        def construct_processes(_):
-            fs, noises = zip(*self.processes(self.params.processes))
-            obs, _ = self._obs_y(fs, noises, x, y, noise)
-            post = fs[0].measure | obs
-            return [(post(f), noise) for f, noise in zip(fs, noises)]
-
-        return MOGP(
-            dtype=self.dtype,
-            processes=construct_processes,
-            data_transform=self.data_transform,
-        ).bind(self)
-
-    def fit(self, x, y, noise=None, **kw_args):
-        def negative_log_marginal_likelihood(vs):
-            with self.use_vs(vs):
-                return -self.logpdf(x, y, noise) / count(y)
-
-        minimise_l_bfgs_b(negative_log_marginal_likelihood, self.vs, **kw_args)
+        return fs[0].measure.logpdf(obs)
 
     def _ys(self, x):
         return [
-            f + GP(noise * Delta(), measure=f.measure)
-            for f, noise in self.processes(self.params.processes)
+            f + GP(noise * Delta(), measure=f.measure) for f, noise in self.processes
         ]
 
+    @instancemethod
+    @convert
     def predict(self, x):
         # Predict the full joint.
         y = cross(*self._ys(x))
@@ -169,9 +146,11 @@ class MOGP(MultiOutputModel):
             axis=0
         )
 
-        return self.data_transform.untransform((mean, var))
+        return mean, var
 
+    @instancemethod
+    @convert
     def sample(self, x):
         ys = self._ys(x)
         sample = B.concat(*ys[0].measure.sample(*[y(x) for y in ys]), axis=1)
-        return self.data_transform.untransform(sample)
+        return sample

@@ -1,70 +1,59 @@
 import warnings
 from types import FunctionType
+from typing import Union
 
 import lab as B
 import numpy as np
 from matrix import TiledBlocks, AbstractMatrix
-from plum import Dispatcher, convert
-from varz import minimise_l_bfgs_b
-from probmods.bijection import parse as _parse_transform
-from probmods.model import MultiOutputModel
+from plum import Dispatcher
+import plum
+from probmods import Model, instancemethod, convert
 
 from .imogp import IMOGP
 from .mogp import MOGP
-from .util import count
 
 __all__ = ["OILMM", "ILMM"]
 
 _dispatch = Dispatcher()
 
 
-class AbstractILMM(MultiOutputModel):
+class AbstractILMM(Model):
     """Instantaneous Linear Mixing Model.
 
     Args:
-        dtype (dtype): Data type.
-        latent_processes (function or :class:`wbml.model.ProbabilisticModel`): Function
-            which takes in a parameters struct and returns a list of tuples of
-            :class:`stheno.GP`s and noises, which correspond to the models for the
-            latent processes or another model.
+        latent_processes (model): Model for the latent processes.
         noise (scalar, optional): Observation noise. Defaults to `1e-2`.
         mixing_matrix (str or tensor or function, optional): Either the string "random",
             an initial value, or a function which takes in a parameter struct, a height,
             and a width and returns the mixing matrix.
-        data_transform (str or :class:`.bijection.Bijection`, optional): Specification
-            for a data transformation. Defaults to "normalise".
-        num_outputs (int, optional): Number of outputs. Will be automatically inferred.
+        num_outputs (int, optional): Number of outputs.
     """
 
     def __init__(
         self,
-        dtype,
         latent_processes,
         noise=1e-2,
         mixing_matrix=None,
-        data_transform="normalise",
         num_outputs=None,
     ):
-        MultiOutputModel.__init__(self, dtype)
-        self.latent_processes = _parse_latent_processes(self, latent_processes)
-        self._noise = noise
+        self.latent_processes = latent_processes
+        self.noise = noise
         self._mixing_matrix = _parse_mixing_matrix(self, mixing_matrix)
-        self.data_transform = _parse_transform(data_transform)
         self.num_outputs = num_outputs
 
-    @property
-    def noise(self):
-        """scalar: Observation noise."""
-        if self._noise is 0:
-            return 0
+    def __prior__(self):
+        self.latent_processes = self.latent_processes(self.ps.latent_processes)
+        if self.noise is 0:
+            self.noise = 0
         else:
-            return self.params.noise.positive(self._noise)
+            self.noise = self.ps.noise.positive(self.noise)
 
     @property
     def mixing_matrix(self):
-        """matrix: Mixing matrix."""
+        """matrix: Lazily construct the mixing matrix: the number of outputs may not
+        yet be known at construction time."""
         h = self._mixing_matrix(
-            self.params.mixing_matrix,
+            self.ps.mixing_matrix,
             self.num_outputs,
             self.latent_processes.num_outputs,
         )
@@ -77,52 +66,28 @@ class AbstractILMM(MultiOutputModel):
             )
         return h
 
-    @property
-    def noiseless(self):
-        # This is either an ILMM or OILMM. We need to preserve the type.
-        return type(self)(
-            dtype=self.dtype,
-            latent_processes=self.latent_processes.noiseless,
-            noise=0,
-            mixing_matrix=self._mixing_matrix,
-            data_transform=self.data_transform,
-            num_outputs=self.num_outputs,
-        ).bind(self)
+    def __noiseless__(self):
+        self.latent_processes.__noiseless__()
+        self.noise = 0
 
     def _init(self, y):
         self.num_outputs = B.shape(y, 1)
 
+    @convert
+    def __condition__(self, x, y):
+        self._init(y)
+        proj_x, proj_y, proj_n, _ = self.project(x, y)
+        self.latent_processes.__condition__((proj_x, proj_n), proj_y)
+
+    @instancemethod
+    @convert
     def logpdf(self, x, y):
         self._init(y)
-        y, proj_x, proj_y, proj_n, reg = self.project(x, y)
-        return (
-            self.latent_processes.logpdf(proj_x, proj_y, proj_n)
-            - reg
-            + self.data_transform.logdet(y)
-        )
+        proj_x, proj_y, proj_n, reg = self.project(x, y)
+        return self.latent_processes.logpdf((proj_x, proj_n), proj_y) - reg
 
-    def condition(self, x, y):
-        self._init(y)
-        _, proj_x, proj_y, proj_n, _ = self.project(x, y)
-        # This is either an ILMM or OILMM. We need to preserve the type.
-        return type(self)(
-            dtype=self.dtype,
-            latent_processes=self.latent_processes.condition(proj_x, proj_y, proj_n),
-            noise=self._noise,
-            mixing_matrix=self._mixing_matrix,
-            data_transform=self.data_transform,
-            num_outputs=self.num_outputs,
-        ).bind(self)
-
-    def fit(self, x, y, **kw_args):
-        self._init(y)
-
-        def negative_log_marginal_likelihood(vs):
-            with self.use_vs(vs):
-                return -self.logpdf(x, y) / count(y)
-
-        minimise_l_bfgs_b(negative_log_marginal_likelihood, self.vs, **kw_args)
-
+    @instancemethod
+    @convert
     def project(self, x, y):
         """Project data.
 
@@ -131,14 +96,11 @@ class AbstractILMM(MultiOutputModel):
             y (matrix): Observations of data.
 
         Returns:
-            tuple: Tuple containing the transformed data, the locations of the
-                projection, the projected data, the projected noise, and a
-                regularisation term.
+            tuple: The locations of the projection, the projected data, the projected
+                noise, and a regularisation term.
         """
         self._init(y)
 
-        # Perform data transformation and check for missing data.
-        y = self.data_transform(y)
         # We convert `available` to NumPy to efficiently compute the available patterns.
         available = B.jit_to_numpy(~B.isnan(y))
 
@@ -147,9 +109,7 @@ class AbstractILMM(MultiOutputModel):
 
         # Optimise the case where all data is available.
         if B.all(available):
-            return (y,) + self._project_pattern(
-                x, y, np.array([True] * self.num_outputs), h
-            )
+            return self._project_pattern(x, y, np.array([True] * self.num_outputs), h)
 
         # Extract patterns. We convert to bytes for hashing.
         available_patterns = [row.tobytes() for row in available]
@@ -175,10 +135,7 @@ class AbstractILMM(MultiOutputModel):
             # Extract a mask by just taking the first index.
             mask = available[pattern_inds[0]]
             proj_x, proj_y, proj_n, reg = self._project_pattern(
-                B.take(x, pattern_inds),
-                B.take(y, pattern_inds),
-                mask,
-                h,
+                B.take(x, pattern_inds), B.take(y, pattern_inds), mask, h
             )
             projs.append((proj_x, proj_y, proj_n))
             total_reg = total_reg + reg
@@ -186,7 +143,6 @@ class AbstractILMM(MultiOutputModel):
         # Concatenate the projections for all patterns and return.
         proj_xs, proj_ys, proj_ns = zip(*projs)
         return (
-            y,
             B.concat(*proj_xs, axis=0),
             B.concat(*proj_ys, axis=0),
             B.concat(*proj_ns, axis=0),
@@ -202,7 +158,7 @@ class AbstractILMM(MultiOutputModel):
             h = B.take(h, mask, axis=0)
 
         # Ensure that `h` is a structured matrix for dispatch.
-        h = convert(h, AbstractMatrix)
+        h = plum.convert(h, AbstractMatrix)
 
         # Get number of data points and outputs in this part of the data.
         n = B.shape(x, 0)
@@ -231,6 +187,8 @@ class AbstractILMM(MultiOutputModel):
 
         return x, proj_y, proj_n, reg
 
+    @instancemethod
+    @convert
     def predict(self, x):
         # Make predictions for the latent processes.
         mean, var = self.latent_processes.predict(x)
@@ -249,8 +207,10 @@ class AbstractILMM(MultiOutputModel):
         # Add noise.
         var = var + self.noise
 
-        return self.data_transform.untransform((mean, var))
+        return mean, var
 
+    @instancemethod
+    @convert
     def sample(self, x):
         # Sample from the latent processes.
         sample = self.latent_processes.sample(x)
@@ -261,7 +221,7 @@ class AbstractILMM(MultiOutputModel):
         # Add noise.
         sample = sample + B.sqrt(self.noise) * B.randn(sample)
 
-        return self.data_transform.untransform(sample)
+        return sample
 
 
 class OILMM(AbstractILMM):
@@ -270,30 +230,6 @@ class OILMM(AbstractILMM):
 
 class ILMM(AbstractILMM):
     """ILMM. See :class:`.AbstractILMM`."""
-
-
-@_dispatch
-def _parse_latent_processes(model: AbstractILMM, spec: MultiOutputModel):
-    """Parse a specification for the latent processes.
-
-    Args:
-        model (:class:`.AbstractILMM`): Instance of the model.
-        spec (object): Specification.
-
-    Returns:
-        :class:`wbml.model.MultiOutputModel`: Model for the latent processes.
-    """
-    return spec
-
-
-@_dispatch
-def _parse_latent_processes(model: OILMM, spec: FunctionType):
-    return IMOGP(dtype=model.dtype, processes=spec)
-
-
-@_dispatch
-def _parse_latent_processes(model: ILMM, spec: FunctionType):
-    return MOGP(dtype=model.dtype, processes=spec)
 
 
 @_dispatch.abstract
@@ -319,8 +255,8 @@ def _parse_mixing_matrix(model: OILMM, spec: None):
 def _parse_mixing_matrix(model: OILMM, spec: str):
     if spec == "random":
 
-        def mixing_matrix(params, p, m):
-            return params.u.orthogonal(shape=(p, m))
+        def mixing_matrix(ps, p, m):
+            return ps.u.orthogonal(shape=(p, m))
 
     else:
         raise ValueError(f'Unknown mixing matrix specification "{spec}".')
@@ -330,8 +266,8 @@ def _parse_mixing_matrix(model: OILMM, spec: str):
 
 @_dispatch
 def _parse_mixing_matrix(model: OILMM, spec: B.Numeric):
-    def mixing_matrix(params, p, m):
-        return params.u.orthogonal(spec, shape=(p, m))
+    def mixing_matrix(ps, p, m):
+        return ps.u.orthogonal(spec, shape=(p, m))
 
     return mixing_matrix
 
@@ -345,8 +281,8 @@ def _parse_mixing_matrix(model: ILMM, spec: None):
 def _parse_mixing_matrix(model: ILMM, spec: str):
     if spec == "random":
 
-        def mixing_matrix(params, p, m):
-            return params.h.unbounded(shape=(p, m))
+        def mixing_matrix(ps, p, m):
+            return ps.h.unbounded(shape=(p, m))
 
     else:
         raise ValueError(f'Unknown mixing matrix specification "{spec}".')
@@ -356,8 +292,8 @@ def _parse_mixing_matrix(model: ILMM, spec: str):
 
 @_dispatch
 def _parse_mixing_matrix(model: ILMM, spec: B.Numeric):
-    def mixing_matrix(params, p, m):
-        return params.h.unbounded(spec, shape=(p, m))
+    def mixing_matrix(ps, p, m):
+        return ps.h.unbounded(spec, shape=(p, m))
 
     return mixing_matrix
 

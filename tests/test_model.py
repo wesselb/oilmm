@@ -1,29 +1,28 @@
-import lab as B
+# noinspection PyUnresolvedReferences
+import lab.tensorflow
+import numpy as np
 import pytest
-from oilmm.test import test_sample_prior
+import tensorflow as tf
+from oilmm import OILMM, ILMM
+from probmods.test import check_model
+from stheno import GP, EQ
 
 # noinspection PyUnresolvedReferences
 from .util import approx, oilmm
 
 
-def different(x, y, rtol=None, atol=None):
-    if rtol is None and atol is None:
-        rtol = 1e-2
-    adiff = B.abs(B.to_numpy(x) - B.to_numpy(y))
-    rdiff = adiff / B.maximum(B.to_numpy(x), B.to_numpy(y))
-    if atol is not None:
-        assert B.mean(adiff) >= atol
-    if rtol is not None:
-        assert B.mean(rdiff) >= rtol
+@pytest.mark.parametrize("LMM", [OILMM, ILMM])
+def test_model(LMM):
+    def build_latent_processes(ps):
+        return [
+            (
+                p.variance.positive(1) * GP(EQ().stretch(p.length_scale.positive(1))),
+                p.noise.positive(1e-2),
+            )
+            for p, _ in zip(ps, range(2))
+        ]
 
-
-@pytest.fixture()
-def x():
-    return B.randn(50, 1)
-
-
-def test_sample(oilmm, x):
-    B.set_random_seed(0)
-    sample1 = oilmm.sample(x)
-    sample2 = oilmm.sample(x)
-    different(sample1, sample2)
+    model = LMM(tf.float64, build_latent_processes, num_outputs=3)
+    # Train the data transform.
+    model.data_transform(model.sample(np.linspace(0, 5, 5)))
+    check_model(model)
