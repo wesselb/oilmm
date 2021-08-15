@@ -181,8 +181,10 @@ def build_latent_processes(ps):
 
 ### Kronecker-Structured Mixing Matrix
 ```python
-p_left, m_left = 10, 3
-p_right, m_right = 5, 2
+from matrix import Kronecker
+
+p_left, m_left = 10, 3  # Shape of left factor in Kronecker product
+p_right, m_right = 5, 2  # Shape of right factor in Kronecker product
 
 
 def build_mixing_matrix(ps, p, m):
@@ -190,6 +192,14 @@ def build_mixing_matrix(ps, p, m):
         ps.left.orthogonal(shape=(p_left, m_left)),
         ps.right.orthogonal(shape=(p_right, m_right)),
     )
+
+
+prior = OILMM(
+    dtype,
+    latent_processes=build_latent_processes,
+    mixing_matrix=build_mixing_matrix,
+    num_outputs=p_left * p_right
+)
 ```
 
 ## Reproduce Experiments From the Paper
