@@ -121,6 +121,9 @@ def fit(
     x, noise = parse_input(x)
     noise = _noise_diagonals_to_matrix(noise)
 
+    # Make sure that the data transform is fit.
+    model.data_transform.transform(y)
+
     for i in range(model().num_outputs):
 
         def normalised_negative_log_marginal_likelihood(vs):

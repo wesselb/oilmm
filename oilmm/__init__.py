@@ -1,11 +1,11 @@
-from .util import *
+from probmods import Transformed
+
 from .imogp import *
 from .mogp import *
 from .oilmm import OILMM as _OILMM, ILMM as _ILMM
+from .util import *
 
-from probmods import Transformed
-
-__all__ = ["OILMM", "ILMM"]
+__all__ = ["OILMM", "ILMM"] + util.__all__ + imogp.__all__ + mogp.__all__
 
 
 def OILMM(dtype, latent_processes, *args, data_transform="normalise", **kw_args):
