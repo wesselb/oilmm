@@ -5,9 +5,8 @@ from typing import Union
 import lab as B
 import numpy as np
 from matrix import TiledBlocks, AbstractMatrix
-from plum import Dispatcher
-import plum
-from probmods import Model, instancemethod, convert
+from plum import Dispatcher, convert
+from probmods import Model, instancemethod, cast
 
 from .imogp import IMOGP
 from .mogp import MOGP
@@ -73,21 +72,21 @@ class AbstractILMM(Model):
     def _init(self, y):
         self.num_outputs = B.shape(y, 1)
 
-    @convert
+    @cast
     def __condition__(self, x, y):
         self._init(y)
         proj_x, proj_y, proj_n, _ = self.project(x, y)
         self.latent_processes.__condition__((proj_x, proj_n), proj_y)
 
     @instancemethod
-    @convert
+    @cast
     def logpdf(self, x, y):
         self._init(y)
         proj_x, proj_y, proj_n, reg = self.project(x, y)
         return self.latent_processes.logpdf((proj_x, proj_n), proj_y) - reg
 
     @instancemethod
-    @convert
+    @cast
     def project(self, x, y):
         """Project data.
 
@@ -158,7 +157,7 @@ class AbstractILMM(Model):
             h = B.take(h, mask, axis=0)
 
         # Ensure that `h` is a structured matrix for dispatch.
-        h = plum.convert(h, AbstractMatrix)
+        h = convert(h, AbstractMatrix)
 
         # Get number of data points and outputs in this part of the data.
         n = B.shape(x, 0)
@@ -188,7 +187,7 @@ class AbstractILMM(Model):
         return x, proj_y, proj_n, reg
 
     @instancemethod
-    @convert
+    @cast
     def predict(self, x):
         # Make predictions for the latent processes.
         mean, var = self.latent_processes.predict(x)
@@ -210,7 +209,7 @@ class AbstractILMM(Model):
         return mean, var
 
     @instancemethod
-    @convert
+    @cast
     def sample(self, x):
         # Sample from the latent processes.
         sample = self.latent_processes.sample(x)

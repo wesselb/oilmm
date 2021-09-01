@@ -1,7 +1,7 @@
 import lab as B
 from matrix import TiledBlocks
 from plum import Dispatcher
-from probmods.model import Model, Transformed, fit, instancemethod, convert
+from probmods.model import Model, Transformed, fit, instancemethod, cast
 from stheno import Obs, PseudoObs
 from varz import minimise_l_bfgs_b
 
@@ -62,7 +62,7 @@ class IMOGP(Model):
         else:
             self.x_ind = self.ps.x_ind.unbounded(self._x_ind)
 
-    @convert
+    @cast
     def __condition__(self, x, y):
         x, noise = parse_input(x)
         noise = _noise_diagonals_to_matrix(noise)
@@ -82,7 +82,7 @@ class IMOGP(Model):
             return PseudoObs(f(self.x_ind), f(x, noise), y)
 
     @instancemethod
-    @convert
+    @cast
     def logpdf(self, x, y):
         x, noise = parse_input(x)
         noise = _noise_diagonals_to_matrix(noise)
@@ -93,7 +93,7 @@ class IMOGP(Model):
         return logpdf
 
     @instancemethod
-    @convert
+    @cast
     def predict(self, x):
         processes = self.processes
         # Compute means and marginal variances.
@@ -104,7 +104,7 @@ class IMOGP(Model):
         return mean, var
 
     @instancemethod
-    @convert
+    @cast
     def sample(self, x):
         return B.concat(*[f(x, noise).sample() for f, noise in self.processes], axis=1)
 

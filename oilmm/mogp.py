@@ -4,7 +4,7 @@ import lab as B
 from matrix import AbstractMatrix, TiledBlocks
 from plum import Dispatcher
 from plum import Union
-from probmods import Model, instancemethod, convert, parse as _parse_transform
+from probmods import Model, instancemethod, cast, parse as _parse_transform
 from stheno import Obs, cross, Measure, GP, Delta
 from varz import minimise_l_bfgs_b
 
@@ -99,7 +99,7 @@ class MOGP(Model):
 
         return obs, y
 
-    @convert
+    @cast
     def __condition__(self, x, y):
         x, noise = parse_input(x)
         fs, noises = zip(*self.processes)
@@ -108,7 +108,7 @@ class MOGP(Model):
         self.processes = [(post(f), noise) for f, noise in zip(fs, noises)]
 
     @instancemethod
-    @convert
+    @cast
     def logpdf(self, x, y):
         x, noise = parse_input(x)
         fs, noises = zip(*self.processes)
@@ -121,7 +121,7 @@ class MOGP(Model):
         ]
 
     @instancemethod
-    @convert
+    @cast
     def predict(self, x):
         # Predict the full joint.
         y = cross(*self._ys(x))
@@ -149,7 +149,7 @@ class MOGP(Model):
         return mean, var
 
     @instancemethod
-    @convert
+    @cast
     def sample(self, x):
         ys = self._ys(x)
         sample = B.concat(*ys[0].measure.sample(*[y(x) for y in ys]), axis=1)

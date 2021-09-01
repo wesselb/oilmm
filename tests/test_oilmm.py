@@ -50,9 +50,9 @@ from .util import approx, increased_regularisation, oilmm
 )
 def test_correctness(lmm, increased_regularisation):
     instance = lmm(lmm.vs)
-    noise = instance.noise
-    h = instance.mixing_matrix
-    lats, noises = zip(*instance.latent_processes.processes)
+    noise = instance.model.noise
+    h = instance.model.mixing_matrix
+    lats, noises = zip(*instance.model.latent_processes.processes)
 
     # Represent the noises on the latent processes as correlated noise in the output
     # space.
@@ -133,7 +133,7 @@ def test_contructor(LMM, latent_processes, mixing_matrix, data_transform):
         num_outputs=6,
         data_transform=data_transform,
     )
-    lmm().mixing_matrix
+    lmm().model.mixing_matrix
 
 
 @pytest.mark.parametrize("LMM", [OILMM, ILMM])
@@ -154,13 +154,13 @@ def test_constructor_invalid_arguments(LMM):
             mixing_matrix=lambda _, p, m: B.randn(2, 1),
             num_outputs=3,
         )
-        lmm().mixing_matrix
+        lmm().model.mixing_matrix
 
 
 def test_zero_noise():
     lmm = OILMM(np.float64, lambda _: [(GP(EQ()), 1e-2)], noise=0)
-    assert lmm.noise is 0
-    assert lmm().noise is 0
+    assert lmm.model.noise is 0
+    assert lmm().model.noise is 0
 
 
 def test_variance_rank_check(mocker, oilmm):
