@@ -3,7 +3,8 @@ import oilmm.tensorflow  # noqa
 from oilmm.imogp import IMOGP
 from oilmm.oilmm import OILMM
 from probmods import Transformed
-from stheno import EQ, GP, Matern32 as Mat32
+from stheno import EQ, GP
+from stheno import Matern52 as Mat52
 from wbml.data.eeg import load
 
 from util import *
@@ -16,6 +17,8 @@ if __name__ == "__main__":
     x = np.array(train.index)
     y = np.array(train)
 
+    m = 3
+
     def build_latent_processes(ps):
         # Return models for latent processes, which are noise-contaminated GPs.
         return [
@@ -23,13 +26,13 @@ if __name__ == "__main__":
                 p.variance.positive(1) * GP(EQ().stretch(p.scale.positive(0.02))),
                 p.noise.positive(1e-2),
             )
-            for p, _ in zip(ps, range(3))
+            for p, _ in zip(ps, range(m))
         ]
 
     def build_mixing_matrix(ps, p, m):
-        k = Mat32()(
-            ps.p_locs.bounded(lower=0, upper=10, shape=(p, 2)),
-            ps.m_locs.bounded(lower=0, upper=10, shape=(m, 2)),
+        k = Mat52()(
+            ps.p_locs.bounded(lower=0, upper=10, shape=(p, 3)),
+            ps.m_locs.bounded(lower=0, upper=10, shape=(m, 3)),
         )
         return B.svd(B.dense(k))[0]
 
