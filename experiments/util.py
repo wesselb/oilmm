@@ -5,15 +5,14 @@ import pandas as pd
 import tensorflow as tf
 import wbml.metric as metric
 import wbml.out as out
+from oilmm.mogp import MOGP
+from oilmm.oilmm import ILMM, OILMM
+from oilmm.util import count
 from plum import Dispatcher
 from probmods import Transformed
-from stheno import Measure, GP
+from stheno import GP, Measure
 from wbml.experiment import WorkingDirectory
 from wbml.plot import tweak
-
-from oilmm.mogp import MOGP
-from oilmm.oilmm import OILMM, ILMM
-from oilmm.util import count
 
 __all__ = [
     "np",
@@ -44,15 +43,15 @@ def ilmm(transformed: Transformed[OILMM]) -> Transformed[ILMM]:
         with Measure():
             return [
                 (GP(f.mean, f.kernel), noise)
-                for f, noise in transformed.latent_processes.processes
+                for f, noise in transformed.model.latent_processes.processes
             ]
 
     return Transformed(
         transformed.vs,
         ILMM(
             latent_processes=MOGP(build_correlated_latent_processes),
-            mixing_matrix=transformed.mixing_matrix,
-            noise=transformed.noise,
+            mixing_matrix=transformed.model.mixing_matrix,
+            noise=transformed.model.noise,
             num_outputs=transformed.num_outputs,
         ),
         data_transform=transformed.data_transform,
