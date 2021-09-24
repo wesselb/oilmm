@@ -3,7 +3,7 @@ import oilmm.tensorflow  # noqa
 from oilmm.imogp import IMOGP
 from oilmm.oilmm import OILMM
 from probmods import Transformed
-from stheno import EQ, GP, Exp
+from stheno import EQ, GP, Matern32 as Mat32
 from wbml.data.eeg import load
 
 from util import *
@@ -27,7 +27,7 @@ if __name__ == "__main__":
         ]
 
     def build_mixing_matrix(ps, p, m):
-        k = EQ()(
+        k = Mat32()(
             ps.p_locs.bounded(lower=0, upper=10, shape=(p, 2)),
             ps.m_locs.bounded(lower=0, upper=10, shape=(m, 2)),
         )
