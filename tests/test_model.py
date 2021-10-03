@@ -3,9 +3,9 @@ import lab.tensorflow
 import numpy as np
 import pytest
 import tensorflow as tf
-from oilmm import OILMM, ILMM
+from oilmm import ILMM, OILMM
 from probmods.test import check_model
-from stheno import GP, EQ
+from stheno import EQ, GP
 
 # noinspection PyUnresolvedReferences
 from .util import approx, oilmm
@@ -25,4 +25,4 @@ def test_model(LMM):
     model = LMM(tf.float64, build_latent_processes, num_outputs=3)
     # Train the data transform.
     model.data_transform(model.sample(np.linspace(0, 5, 5)))
-    check_model(model)
+    check_model(model, rtol=5e-4)
