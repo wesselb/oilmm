@@ -1,7 +1,7 @@
 import lab as B
 from matrix import TiledBlocks
 from plum import Dispatcher
-from probmods.model import Model, Transformed, fit, instancemethod, cast
+from probmods.model import Model, Transformed, cast, fit, instancemethod
 from stheno import Obs, PseudoObs
 from varz import minimise_l_bfgs_b
 
@@ -134,7 +134,7 @@ def fit(
             yi_transformed = instance.data_transform.transform(yi, i)
 
             # Compute logpdf for output `i`.
-            f, f_noise = instance.processes[i]
+            f, f_noise = instance.model.processes[i]
             obs = instance.model._compute_obs(
                 f,
                 x,
