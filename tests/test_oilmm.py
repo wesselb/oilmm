@@ -51,7 +51,7 @@ from .util import approx, increased_regularisation, oilmm
                 ),
             )
             # Test homogeneous and heterogeneous output noise.
-            for noise in [5e-1, 5e-1 * B.ones(5)]
+            for noise in [5e-2, 5e-2 * B.ones(5)]
         ],
         (),
     ),
