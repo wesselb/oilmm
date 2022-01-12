@@ -98,7 +98,7 @@ def test_correctness(lmm, increased_regularisation):
         # Make the predictions of `mogp` line up.
         mogp_var = B.diag_extract(mogp_var) + B.diag(mogp_extra_var)[None, :]
 
-        approx(lmm_mean, mogp_mean, rtol=1e-5)
+        approx(lmm_mean, mogp_mean, rtol=1e-4)
         approx(lmm_var, mogp_var, rtol=1e-4)
 
     # Check priors.
