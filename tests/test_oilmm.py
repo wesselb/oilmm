@@ -16,41 +16,50 @@ from .util import approx, increased_regularisation, oilmm
 
 @pytest.mark.parametrize(
     "lmm",
-    [
-        OILMM(
-            np.float64,
-            lambda ps: [
-                (GP(1.0 * EQ().stretch(0.5)), 8e-2),
-                (GP(1.1 * EQ().stretch(0.6)), 7e-2),
-                (GP(1.2 * EQ().stretch(0.7)), 6e-2),
-                (GP(1.3 * EQ().stretch(0.8)), 5e-2),
-            ],
-            noise=5e-2,
-            # Mixing matrix must be orthogonal. We let it have the right orthogonal
-            # blocks to ensure that the missing data approximation is exact.
-            mixing_matrix=B.block_diag(
-                B.svd(B.randn(2, 2))[0], B.svd(B.randn(3, 2))[0]
-            ),
-            num_outputs=5,
-            data_transform="normalise",
-        ),
-        ILMM(
-            np.float64,
-            lambda ps: [
-                (GP(1.0 * EQ().stretch(0.5)), 8e-2),
-                (GP(1.1 * EQ().stretch(0.6)), 7e-2),
-                (GP(1.2 * EQ().stretch(0.7)), 6e-2),
-                (GP(1.3 * EQ().stretch(0.8)), 5e-2),
-            ],
-            noise=5e-2,
-            num_outputs=5,
-            data_transform="normalise",
-        ),
-    ],
+    sum(
+        [
+            (
+                OILMM(
+                    np.float64,
+                    lambda ps: [
+                        (GP(1.0 * EQ().stretch(0.5)), 8e-2),
+                        (GP(1.1 * EQ().stretch(0.6)), 7e-2),
+                        (GP(1.2 * EQ().stretch(0.7)), 6e-2),
+                        (GP(1.3 * EQ().stretch(0.8)), 5e-2),
+                    ],
+                    noise=noise,
+                    # Mixing matrix must be orthogonal. We let it have the right
+                    # orthogonal blocks to ensure that the missing data approximation is
+                    # exact.
+                    mixing_matrix=B.block_diag(
+                        B.svd(B.randn(2, 2))[0], B.svd(B.randn(3, 2))[0]
+                    ),
+                    num_outputs=5,
+                    transform="normalise",
+                ),
+                ILMM(
+                    np.float64,
+                    lambda ps: [
+                        (GP(1.0 * EQ().stretch(0.5)), 8e-2),
+                        (GP(1.1 * EQ().stretch(0.6)), 7e-2),
+                        (GP(1.2 * EQ().stretch(0.7)), 6e-2),
+                        (GP(1.3 * EQ().stretch(0.8)), 5e-2),
+                    ],
+                    noise=noise,
+                    num_outputs=5,
+                    transform="normalise",
+                ),
+            )
+            # Test homogeneous and heterogeneous output noise.
+            for noise in [5e-1, 5e-1 * B.ones(5)]
+        ],
+        (),
+    ),
 )
 def test_correctness(lmm, increased_regularisation):
     instance = lmm(lmm.vs)
-    noise = instance.model.noise
+    # Reduce possible heterogeneous specification to a scalar.
+    noise = B.mean(instance.model.noise)
     h = instance.model.mixing_matrix
     lats, noises = zip(*instance.model.latent_processes.processes)
 
@@ -68,7 +77,7 @@ def test_correctness(lmm, increased_regularisation):
                     fs[i] += h[i, j] * xs[j]
             return [(f, noise) for f in fs]
 
-    mogp = Transformed(np.float64, MOGP(build_processes), data_transform="normalise")
+    mogp = Transformed(np.float64, MOGP(build_processes), transform="normalise")
 
     x = B.linspace(0, 10, 10)
     x_pred = B.concat(x, 10 * B.rand(10))
@@ -76,12 +85,12 @@ def test_correctness(lmm, increased_regularisation):
     def check_logpdfs(lmm, mogp, mogp_extra_var):
         mogp_extra_var = matrix.TiledBlocks(mogp_extra_var, B.shape(x, 0))
         for y in [lmm.sample(x), mogp.sample(x)]:
-            approx(lmm.logpdf(x, y), mogp.logpdf((x, mogp_extra_var), y), rtol=5e-6)
+            approx(lmm.logpdf(x, y), mogp.logpdf((x, mogp_extra_var), y), rtol=1e-5)
 
     def check_preds(lmm, mogp, mogp_extra_var):
         # Account for the data transformation.
         mogp_extra_var = B.dense(mogp_extra_var)
-        mogp_extra_var = mogp.data_transform.untransform((0, mogp_extra_var))[1]
+        mogp_extra_var = mogp.transform.untransform((0, mogp_extra_var))[1]
 
         # Make predictions.
         lmm_mean, lmm_var = lmm.predict(x_pred)
@@ -89,8 +98,8 @@ def test_correctness(lmm, increased_regularisation):
         # Make the predictions of `mogp` line up.
         mogp_var = B.diag_extract(mogp_var) + B.diag(mogp_extra_var)[None, :]
 
-        approx(lmm_mean, mogp_mean, rtol=5e-6)
-        approx(lmm_var, mogp_var, rtol=5e-6)
+        approx(lmm_mean, mogp_mean, rtol=1e-5)
+        approx(lmm_var, mogp_var, rtol=1e-5)
 
     # Check priors.
     check_logpdfs(lmm, mogp, y_noise)
@@ -124,14 +133,14 @@ def test_correctness(lmm, increased_regularisation):
         "random",
     ],
 )
-@pytest.mark.parametrize("data_transform", [None, "normalise", bijection.Normaliser()])
-def test_contructor(LMM, latent_processes, mixing_matrix, data_transform):
+@pytest.mark.parametrize("transform", [None, "normalise", bijection.Normaliser()])
+def test_contructor(LMM, latent_processes, mixing_matrix, transform):
     lmm = LMM(
         np.float64,
         latent_processes=latent_processes,
         mixing_matrix=mixing_matrix,
         num_outputs=6,
-        data_transform=data_transform,
+        transform=transform,
     )
     lmm().model.mixing_matrix
 

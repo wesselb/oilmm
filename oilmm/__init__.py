@@ -8,7 +8,14 @@ from .util import *
 __all__ = ["OILMM", "ILMM"] + util.__all__ + imogp.__all__ + mogp.__all__
 
 
-def OILMM(dtype, latent_processes, *args, data_transform="normalise", **kw_args):
+def OILMM(
+    dtype,
+    latent_processes,
+    *args,
+    transform="normalise",
+    learn_transform=False,
+    **kw_args
+):
     """OILMM.
 
     Args:
@@ -20,6 +27,10 @@ def OILMM(dtype, latent_processes, *args, data_transform="normalise", **kw_args)
             an initial value, or a function which takes in a parameter struct, a height,
             and a width and returns the mixing matrix.
         num_outputs (int, optional): Number of outputs.
+        transform (object, optional): Transform. See :func:`probmods.bijector.parse`.
+            Defaults to normalising the data.
+        learn_transform (bool, optional): Learn parameters in the transform. Defaults
+            to `False`.
 
     Returns:
         :class:`probmods.Model`: OILMM.
@@ -27,11 +38,19 @@ def OILMM(dtype, latent_processes, *args, data_transform="normalise", **kw_args)
     return Transformed(
         dtype,
         _OILMM(IMOGP(latent_processes), *args, **kw_args),
-        data_transform=data_transform,
+        transform=transform,
+        learn_transform=learn_transform,
     )
 
 
-def ILMM(dtype, latent_processes, *args, data_transform="normalise", **kw_args):
+def ILMM(
+    dtype,
+    latent_processes,
+    *args,
+    transform="normalise",
+    learn_transform=False,
+    **kw_args
+):
     """ILMM.
 
     Args:
@@ -43,6 +62,10 @@ def ILMM(dtype, latent_processes, *args, data_transform="normalise", **kw_args):
             an initial value, or a function which takes in a parameter struct, a height,
             and a width and returns the mixing matrix.
         num_outputs (int, optional): Number of outputs.
+        transform (object, optional): Transform. See :func:`probmods.bijector.parse`.
+            Defaults to normalising the data.
+        learn_transform (bool, optional): Learn parameters in the transform. Defaults
+            to `False`.
 
     Returns:
         :class:`probmods.Model`: ILMM.
@@ -50,5 +73,6 @@ def ILMM(dtype, latent_processes, *args, data_transform="normalise", **kw_args):
     return Transformed(
         dtype,
         _ILMM(MOGP(latent_processes), *args, **kw_args),
-        data_transform=data_transform,
+        transform=transform,
+        learn_transform=learn_transform,
     )

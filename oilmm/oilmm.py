@@ -4,7 +4,7 @@ from typing import Union
 
 import lab as B
 import numpy as np
-from matrix import TiledBlocks, AbstractMatrix
+from matrix import TiledBlocks, AbstractMatrix, Diagonal, Zero
 from plum import Dispatcher, convert
 from probmods import Model, instancemethod, cast
 
@@ -21,7 +21,10 @@ class AbstractILMM(Model):
 
     Args:
         latent_processes (model): Model for the latent processes.
-        noise (scalar, optional): Observation noise. Defaults to `1e-2`.
+        noise (scalar or vector, optional): Observation noise. Defaults to `1e-2`. If
+            the argument is a scalar, thjen the noise will be homogeneous across
+            outputs. On the other hand, if the argument is a vector, then the noise will
+            be heterogeneous across outputs.
         mixing_matrix (str or tensor or function, optional): Either the string "random",
             an initial value, or a function which takes in a parameter struct, a height,
             and a width and returns the mixing matrix.
@@ -46,6 +49,17 @@ class AbstractILMM(Model):
             self.noise = 0
         else:
             self.noise = self.ps.noise.positive(self.noise)
+
+    @property
+    def noise_matrix(self):
+        """matrix: Lazily construct the noise as a matrix: the number of outputs may not
+        yet be know at construction time."""
+        if self.noise is 0:
+            return Zero(self.dtype, self.num_outputs, self.num_outputs)
+        elif B.is_scalar(self.noise):
+            return B.fill_diag(self.noise, self.num_outputs)
+        else:
+            return Diagonal(self.noise)
 
     @property
     def mixing_matrix(self):
@@ -150,11 +164,13 @@ class AbstractILMM(Model):
 
     def _project_pattern(self, x, y, mask, h):
         m = self.latent_processes.num_outputs
+        noise = self.noise_matrix
 
         if not B.all(mask):
             # Data is missing. Pick the available entries.
             y = B.take(y, mask, axis=1)
             h = B.take(h, mask, axis=0)
+            noise = B.submatrix(noise, mask)
 
         # Ensure that `h` is a structured matrix for dispatch.
         h = convert(h, AbstractMatrix)
@@ -166,20 +182,27 @@ class AbstractILMM(Model):
         # Perform projection.
         proj_y = B.matmul(y, B.pinv(h), tr_b=True)
 
-        # Compute projected noise.
-        h_square = B.matmul(h, h, tr_a=True)
-        proj_n = B.multiply(self.noise, B.pd_inv(h_square))
+        # Compute projected noise. Carefully handle the case that `self.noise = 0`.
+        if isinstance(noise, Zero):
+            # Noise is zero, which means that the projected noise is zero too. The
+            # regulariser is not defined in this case.
+            proj_n = Zero(self.dtype, m, m)
+            reg = np.nan
+        else:
+            # Noise is nonzero. Everything can be computed safely.
+            proj_n_inv = B.matmul(h, B.inv(noise), h, tr_a=True)
+            proj_n = B.pd_inv(proj_n_inv)
 
-        # Compute Frobenius norm.
-        frob = B.sum(y ** 2)
-        frob = frob - B.sum(proj_y * B.matmul(proj_y, h_square))
+            # Compute Frobenius norm.
+            rec_err = B.subtract(y, B.matmul(proj_y, h, tr_b=True))
+            frob = B.sum(B.matmul(rec_err, B.inv(noise)) * rec_err)
 
-        # Compute regularising term.
-        reg = 0.5 * (
-            n * (p - m) * B.log(2 * B.pi * self.noise)
-            + frob / self.noise
-            + n * B.logdet(h_square)
-        )
+            # Compute regularising term.
+            reg = 0.5 * (
+                n * (p - m) * B.log(2 * B.pi)
+                + n * (B.logdet(noise) + B.logdet(proj_n_inv))
+                + frob
+            )
 
         # Repeat the projected noise for every time stamp.
         proj_n = TiledBlocks(proj_n, n, axis=0)
@@ -194,19 +217,20 @@ class AbstractILMM(Model):
 
         # Pull means and variances through mixing matrix.
         h = self.mixing_matrix
-        mean = B.dense(B.matmul(mean, h, tr_b=True))
+        mean = B.matmul(mean, h, tr_b=True)
         # TODO: Simplify this if-statement once batched matrices are available.
         if B.rank(var) == 2:
-            var = B.dense(B.matmul(var, h ** 2, tr_b=True))
+            var = B.matmul(var, h ** 2, tr_b=True)
         elif B.rank(var) == 3:
-            var = B.dense(B.sum(h * B.matmul(h, var), axis=2))
+            var = B.sum(h * B.matmul(h, var), axis=2)
         else:
             raise RuntimeError(f"Invalid rank {B.rank(var)} of variance.")
 
         # Add noise.
-        var = var + self.noise
+        var = B.add(var, B.expand_dims(B.diag(self.noise_matrix), axis=0))
 
-        return mean, var
+        # Return prediction as plain tensors to ease dispatch.
+        return B.dense(mean), B.dense(var)
 
     @instancemethod
     @cast
@@ -215,12 +239,14 @@ class AbstractILMM(Model):
         sample = self.latent_processes.sample(x)
 
         # Pull sample through mixing matrix.
-        sample = B.dense(B.matmul(sample, self.mixing_matrix, tr_b=True))
+        sample = B.matmul(sample, self.mixing_matrix, tr_b=True)
 
         # Add noise.
-        sample = sample + B.sqrt(self.noise) * B.randn(sample)
+        noise = self.noise_matrix
+        sample = B.add(sample, B.matmul(B.randn(sample), B.chol(noise), tr_b=True))
 
-        return sample
+        # Return sample as plain tensor to ease dispatch.
+        return B.dense(sample)
 
 
 class OILMM(AbstractILMM):

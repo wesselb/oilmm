@@ -24,5 +24,5 @@ def test_model(LMM):
 
     model = LMM(tf.float64, build_latent_processes, num_outputs=3)
     # Train the data transform.
-    model.data_transform(model.sample(np.linspace(0, 5, 5)))
+    model.transform(model.sample(np.linspace(0, 5, 5)))
     check_model(model, rtol=5e-4)

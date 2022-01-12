@@ -122,7 +122,7 @@ def fit(
     noise = _noise_diagonals_to_matrix(noise)
 
     # Make sure that the data transform is fit.
-    model.data_transform.transform(y)
+    model.transform.transform(y)
 
     for i in range(model().num_outputs):
 
@@ -131,7 +131,7 @@ def fit(
 
             # Transform the data.
             yi = y[:, i]
-            yi_transformed = instance.data_transform.transform(yi, i)
+            yi_transformed = instance.transform.transform(yi, i)
 
             # Compute logpdf for output `i`.
             f, f_noise = instance.model.processes[i]
@@ -141,7 +141,7 @@ def fit(
                 yi_transformed,
                 noise[:, i] + f_noise,
             )
-            logpdf = f.measure.logpdf(obs) + instance.data_transform.logdet(yi, i)
+            logpdf = f.measure.logpdf(obs) + instance.transform.logdet(yi, i)
             return -logpdf / count(yi)
 
         minimiser(
