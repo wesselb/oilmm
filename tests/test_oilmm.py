@@ -22,10 +22,10 @@ from .util import approx, increased_regularisation, oilmm
                 OILMM(
                     np.float64,
                     lambda ps: [
-                        (GP(1.0 * EQ().stretch(0.5)), 8e-1),
-                        (GP(1.1 * EQ().stretch(0.6)), 7e-1),
-                        (GP(1.2 * EQ().stretch(0.7)), 6e-1),
-                        (GP(1.3 * EQ().stretch(0.8)), 5e-1),
+                        (GP(1.0 * EQ().stretch(0.5)), 8e-2),
+                        (GP(1.1 * EQ().stretch(0.6)), 7e-2),
+                        (GP(1.2 * EQ().stretch(0.7)), 6e-2),
+                        (GP(1.3 * EQ().stretch(0.8)), 5e-2),
                     ],
                     noise=noise,
                     # Mixing matrix must be orthogonal. We let it have the right
@@ -40,10 +40,10 @@ from .util import approx, increased_regularisation, oilmm
                 ILMM(
                     np.float64,
                     lambda ps: [
-                        (GP(1.0 * EQ().stretch(0.5)), 8e-1),
-                        (GP(1.1 * EQ().stretch(0.6)), 7e-1),
-                        (GP(1.2 * EQ().stretch(0.7)), 6e-1),
-                        (GP(1.3 * EQ().stretch(0.8)), 5e-1),
+                        (GP(1.0 * EQ().stretch(0.5)), 8e-2),
+                        (GP(1.1 * EQ().stretch(0.6)), 7e-2),
+                        (GP(1.2 * EQ().stretch(0.7)), 6e-2),
+                        (GP(1.3 * EQ().stretch(0.8)), 5e-2),
                     ],
                     noise=noise,
                     num_outputs=5,
@@ -51,7 +51,7 @@ from .util import approx, increased_regularisation, oilmm
                 ),
             )
             # Test homogeneous and heterogeneous output noise.
-            for noise in [2e-1, 2e-1 * B.ones(5)]
+            for noise in [5e-2, 5e-2 * B.ones(5)]
         ],
         (),
     ),
@@ -99,7 +99,7 @@ def test_correctness(lmm, increased_regularisation):
         mogp_var = B.diag_extract(mogp_var) + B.diag(mogp_extra_var)[None, :]
 
         approx(lmm_mean, mogp_mean, rtol=1e-5)
-        approx(lmm_var, mogp_var, rtol=1e-5)
+        approx(lmm_var, mogp_var, rtol=1e-4)
 
     # Check priors.
     check_logpdfs(lmm, mogp, y_noise)
