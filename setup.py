@@ -6,7 +6,7 @@ requirements = [
     "varz>=0.7.1",
     "backends>=1.4.8",
     "backends-matrix>=1.1.2",
-    "plum-dispatch>=1.3.2",
+    "plum-dispatch>=2",
     "probmods>=0.3.1",
 ]
 

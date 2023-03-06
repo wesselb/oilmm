@@ -1,14 +1,13 @@
 from functools import wraps
+from typing import Union
 
 import lab as B
 from matrix import AbstractMatrix, TiledBlocks
 from plum import Dispatcher
-from plum import Union
-from probmods import Model, instancemethod, cast, parse as _parse_transform
-from stheno import Obs, cross, Measure, GP, Delta
-from varz import minimise_l_bfgs_b
+from probmods import Model, cast, instancemethod
+from stheno import GP, Delta, Measure, Obs, cross
 
-from .util import count, parse_input
+from .util import parse_input
 
 __all__ = ["MOGP"]
 

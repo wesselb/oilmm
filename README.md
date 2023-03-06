@@ -7,7 +7,23 @@
 
 Implementation of the Orthogonal Instantaneous Linear Mixing Model
 
+Citation:
+
+```
+@inproceedings{Bruinsma:2020:Scalable_Exact_Inference_in_Multi-Output,
+    title = {Scalable Exact Inference in Multi-Output {Gaussian} Processes},
+    year = {2020},
+    author = {Wessel P. Bruinsma and Eric Perim and Will Tebbutt and J. Scott Hosking and Arno Solin and Richard E. Turner},
+    booktitle = {Proceedings of 37th International Conference on Machine Learning},
+    series = {Proceedings of Machine Learning Research},
+    publisher = {PMLR},
+    volume = {119},
+    eprint = {https://arxiv.org/abs/1911.06287},
+}
+```
+
 Contents:
+
 * [Requirements and Installation](#reproduce-experiments)
 * [TLDR](#tldr)
 * [Basic Usage](#basic-usage)
